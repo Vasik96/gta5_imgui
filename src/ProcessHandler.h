@@ -1,4 +1,3 @@
- #pragma once
 #pragma once
 #ifndef PROCESSHANDLER_H
 #define PROCESSHANDLER_H
@@ -16,7 +15,8 @@ namespace ProcessHandler {
     bool IsProcessRunning(const wchar_t* processName);
     void ResetSession();
     void LaunchFiveM();
-    void LaunchGTA5(bool AntiCheatEnabled);
+    void LaunchGTA5(bool AntiCheatEnabled, bool intoOnline);
+    void DesyncFromGTAOnline();
 }
 
 

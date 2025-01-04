@@ -74,11 +74,13 @@
     <OutDir>$(SolutionDir)\build\</OutDir>
     <IntDir>$(SolutionDir)\build\intermediates\</IntDir>
     <IncludePath>C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\ext;$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)\ext\curl\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <OutDir>$(SolutionDir)\build\</OutDir>
     <IntDir>$(SolutionDir)\build\intermediates\</IntDir>
     <IncludePath>C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\ext;$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)\ext\curl\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -115,11 +117,12 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>d3d11.lib;dxgi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;dxgi.lib;d3d12.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -131,13 +134,14 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>d3d11.lib;dxgi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;dxgi.lib;d3d12.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -148,11 +152,108 @@
     <ClCompile Include="ext\imgui\imgui_impl_win32.cpp" />
     <ClCompile Include="ext\imgui\imgui_tables.cpp" />
     <ClCompile Include="ext\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="src\Calculations.cpp" />
+    <ClCompile Include="src\DXHandler.cpp" />
+    <ClCompile Include="src\FormattedInfo.cpp" />
+    <ClCompile Include="src\globals.h" />
+    <ClCompile Include="src\gui.cpp" />
+    <ClCompile Include="src\Logging.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\ProcessHandler.cpp" />
+    <ClCompile Include="src\ExternalLogger.cpp" />
     <ClCompile Include="src\TicTacToe.cpp" />
+    <ClCompile Include="src\WindowHandler.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="ext\curl\include\brotli\decode.h" />
+    <ClInclude Include="ext\curl\include\brotli\encode.h" />
+    <ClInclude Include="ext\curl\include\brotli\port.h" />
+    <ClInclude Include="ext\curl\include\brotli\shared_dictionary.h" />
+    <ClInclude Include="ext\curl\include\brotli\types.h" />
+    <ClInclude Include="ext\curl\include\libpsl.h" />
+    <ClInclude Include="ext\curl\include\libssh2.h" />
+    <ClInclude Include="ext\curl\include\libssh2_publickey.h" />
+    <ClInclude Include="ext\curl\include\libssh2_sftp.h" />
+    <ClInclude Include="ext\curl\include\nghttp2\nghttp2.h" />
+    <ClInclude Include="ext\curl\include\nghttp2\nghttp2ver.h" />
+    <ClInclude Include="ext\curl\include\nghttp3\nghttp3.h" />
+    <ClInclude Include="ext\curl\include\nghttp3\version.h" />
+    <ClInclude Include="ext\curl\include\ngtcp2\ngtcp2.h" />
+    <ClInclude Include="ext\curl\include\ngtcp2\ngtcp2_crypto.h" />
+    <ClInclude Include="ext\curl\include\ngtcp2\ngtcp2_crypto_quictls.h" />
+    <ClInclude Include="ext\curl\include\ngtcp2\version.h" />
+    <ClInclude Include="ext\curl\include\openssl\aes.h" />
+    <ClInclude Include="ext\curl\include\openssl\asn1.h" />
+    <ClInclude Include="ext\curl\include\openssl\asn1t.h" />
+    <ClInclude Include="ext\curl\include\openssl\bio.h" />
+    <ClInclude Include="ext\curl\include\openssl\blowfish.h" />
+    <ClInclude Include="ext\curl\include\openssl\bn.h" />
+    <ClInclude Include="ext\curl\include\openssl\buffer.h" />
+    <ClInclude Include="ext\curl\include\openssl\camellia.h" />
+    <ClInclude Include="ext\curl\include\openssl\cast.h" />
+    <ClInclude Include="ext\curl\include\openssl\chacha.h" />
+    <ClInclude Include="ext\curl\include\openssl\cmac.h" />
+    <ClInclude Include="ext\curl\include\openssl\cms.h" />
+    <ClInclude Include="ext\curl\include\openssl\comp.h" />
+    <ClInclude Include="ext\curl\include\openssl\conf.h" />
+    <ClInclude Include="ext\curl\include\openssl\crypto.h" />
+    <ClInclude Include="ext\curl\include\openssl\ct.h" />
+    <ClInclude Include="ext\curl\include\openssl\curve25519.h" />
+    <ClInclude Include="ext\curl\include\openssl\des.h" />
+    <ClInclude Include="ext\curl\include\openssl\dh.h" />
+    <ClInclude Include="ext\curl\include\openssl\dsa.h" />
+    <ClInclude Include="ext\curl\include\openssl\dtls1.h" />
+    <ClInclude Include="ext\curl\include\openssl\ec.h" />
+    <ClInclude Include="ext\curl\include\openssl\ecdh.h" />
+    <ClInclude Include="ext\curl\include\openssl\ecdsa.h" />
+    <ClInclude Include="ext\curl\include\openssl\engine.h" />
+    <ClInclude Include="ext\curl\include\openssl\err.h" />
+    <ClInclude Include="ext\curl\include\openssl\evp.h" />
+    <ClInclude Include="ext\curl\include\openssl\hkdf.h" />
+    <ClInclude Include="ext\curl\include\openssl\hmac.h" />
+    <ClInclude Include="ext\curl\include\openssl\idea.h" />
+    <ClInclude Include="ext\curl\include\openssl\kdf.h" />
+    <ClInclude Include="ext\curl\include\openssl\lhash.h" />
+    <ClInclude Include="ext\curl\include\openssl\md4.h" />
+    <ClInclude Include="ext\curl\include\openssl\md5.h" />
+    <ClInclude Include="ext\curl\include\openssl\modes.h" />
+    <ClInclude Include="ext\curl\include\openssl\objects.h" />
+    <ClInclude Include="ext\curl\include\openssl\obj_mac.h" />
+    <ClInclude Include="ext\curl\include\openssl\ocsp.h" />
+    <ClInclude Include="ext\curl\include\openssl\opensslconf.h" />
+    <ClInclude Include="ext\curl\include\openssl\opensslfeatures.h" />
+    <ClInclude Include="ext\curl\include\openssl\opensslv.h" />
+    <ClInclude Include="ext\curl\include\openssl\ossl_typ.h" />
+    <ClInclude Include="ext\curl\include\openssl\pem.h" />
+    <ClInclude Include="ext\curl\include\openssl\pkcs12.h" />
+    <ClInclude Include="ext\curl\include\openssl\pkcs7.h" />
+    <ClInclude Include="ext\curl\include\openssl\poly1305.h" />
+    <ClInclude Include="ext\curl\include\openssl\posix_time.h" />
+    <ClInclude Include="ext\curl\include\openssl\rand.h" />
+    <ClInclude Include="ext\curl\include\openssl\rc2.h" />
+    <ClInclude Include="ext\curl\include\openssl\rc4.h" />
+    <ClInclude Include="ext\curl\include\openssl\ripemd.h" />
+    <ClInclude Include="ext\curl\include\openssl\rsa.h" />
+    <ClInclude Include="ext\curl\include\openssl\safestack.h" />
+    <ClInclude Include="ext\curl\include\openssl\sha.h" />
+    <ClInclude Include="ext\curl\include\openssl\sm3.h" />
+    <ClInclude Include="ext\curl\include\openssl\sm4.h" />
+    <ClInclude Include="ext\curl\include\openssl\srtp.h" />
+    <ClInclude Include="ext\curl\include\openssl\ssl.h" />
+    <ClInclude Include="ext\curl\include\openssl\ssl3.h" />
+    <ClInclude Include="ext\curl\include\openssl\stack.h" />
+    <ClInclude Include="ext\curl\include\openssl\tls1.h" />
+    <ClInclude Include="ext\curl\include\openssl\ts.h" />
+    <ClInclude Include="ext\curl\include\openssl\txt_db.h" />
+    <ClInclude Include="ext\curl\include\openssl\ui.h" />
+    <ClInclude Include="ext\curl\include\openssl\x509.h" />
+    <ClInclude Include="ext\curl\include\openssl\x509v3.h" />
+    <ClInclude Include="ext\curl\include\openssl\x509_vfy.h" />
+    <ClInclude Include="ext\curl\include\zconf.h" />
+    <ClInclude Include="ext\curl\include\zdict.h" />
+    <ClInclude Include="ext\curl\include\zlib.h" />
+    <ClInclude Include="ext\curl\include\zstd.h" />
+    <ClInclude Include="ext\curl\include\zstd_errors.h" />
     <ClInclude Include="ext\imgui\imconfig.h" />
     <ClInclude Include="ext\imgui\imgui.h" />
     <ClInclude Include="ext\imgui\imgui_impl_dx11.h" />
@@ -161,8 +262,15 @@
     <ClInclude Include="ext\imgui\imstb_rectpack.h" />
     <ClInclude Include="ext\imgui\imstb_textedit.h" />
     <ClInclude Include="ext\imgui\imstb_truetype.h" />
+    <ClInclude Include="src\Calculations.h" />
+    <ClInclude Include="src\DXHandler.h" />
+    <ClInclude Include="src\FormattedInfo.h" />
+    <ClInclude Include="src\gui.h" />
+    <ClInclude Include="src\Logging.h" />
+    <ClInclude Include="src\ExternalLogger.h" />
     <ClInclude Include="src\ProcessHandler.h" />
     <ClInclude Include="src\TicTacToe.h" />
+    <ClInclude Include="src\WindowHandler.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

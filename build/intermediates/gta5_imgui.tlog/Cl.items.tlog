@@ -5,6 +5,14 @@ C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\ext\imgui\imgui_impl_dx11.cp
 C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\ext\imgui\imgui_impl_win32.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\imgui_impl_win32.obj
 C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\ext\imgui\imgui_tables.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\imgui_tables.obj
 C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\ext\imgui\imgui_widgets.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\imgui_widgets.obj
+C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\src\Calculations.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\Calculations.obj
+C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\src\DXHandler.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\DXHandler.obj
+C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\src\FormattedInfo.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\FormattedInfo.obj
+C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\src\globals.h;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\globals.h.obj
+C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\src\gui.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\gui.obj
+C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\src\Logging.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\Logging.obj
 C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\src\main.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\main.obj
 C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\src\ProcessHandler.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\ProcessHandler.obj
+C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\src\ExternalLogger.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\ExternalLogger.obj
 C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\src\TicTacToe.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\TicTacToe.obj
+C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\src\WindowHandler.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\WindowHandler.obj

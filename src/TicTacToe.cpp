@@ -16,6 +16,7 @@
 #include <imgui/imgui.h>
 
 
+
 namespace TicTacToe {
     char board[3][3] = { {' ', ' ', ' '}, {' ', ' ', ' '}, {' ', ' ', ' '} }; // Define the board
     bool playerTurn = true;  // Define the player's turn
@@ -27,7 +28,6 @@ namespace TicTacToe {
     std::string CheckWinner();
     int Minimax(int depth, bool isMaximizingPlayer);
     void DrawTicTacToeInsideWindow(ImVec4 playerColor, ImVec4 aiColor, ImVec4 drawColor);
-    std::string GetFormattedTime();
 }
 
 
@@ -182,7 +182,7 @@ void TicTacToe::BotMove() {
 
 
 void TicTacToe::DrawTicTacToeInsideWindow(ImVec4 playerColor, ImVec4 aiColor, ImVec4 drawColor) {
-    ImGui::Text("Tic-Tac-Toe");
+    ImGui::TextColored(ImVec4(0.0f, 0.5f, 1.0f, 1.0f), "Tic-Tac-Toe"); //subTitleColor
     ImGui::Spacing();
     ImGui::Spacing();
 
