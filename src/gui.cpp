@@ -3,6 +3,8 @@
 #include <string>
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <urlmon.h>
+#include <filesystem>
 
 #include "gui.h"
 #include "ProcessHandler.h"
@@ -15,6 +17,7 @@
 
 
 #pragma comment(lib, "Ws2_32.lib")
+#pragma comment(lib, "urlmon.lib")
 
 
 std::string fps;
@@ -42,6 +45,21 @@ ImVec4 subTitleColor(0.0f, 0.5f, 1.0f, 1.0f);
 ImVec4 playerColor = ImVec4(0.0f, 1.0f, 0.0f, 1.0f); // Green for player
 ImVec4 aiColor = ImVec4(1.0f, 0.0f, 0.0f, 1.0f);     // Red for AI
 ImVec4 drawColor = ImVec4(0.5f, 0.5f, 0.5f, 1.0f);   // Gray for Draw
+
+
+
+
+
+//download font from github repo
+bool DownloadFont(const std::string& url, const std::string& outputPath)
+{
+    // URLDownloadToFile will download the font file to the given path
+    HRESULT hr = URLDownloadToFileA(nullptr, url.c_str(), outputPath.c_str(), 0, nullptr);
+    return (hr == S_OK);
+}
+
+
+
 
 
 
@@ -88,6 +106,83 @@ namespace gui {
         scrollToBottom = true;
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+/**
+ **************************   Initialize ImGui ***************************************
+**/
+
+void InitializeImGui(HWND window, ID3D11Device* device, ID3D11DeviceContext* device_context) {
+    Logging::Log("Initializing ImGui...", 1);
+
+
+    const char* fontPath = "roboto_medium.ttf";
+    const std::string url = "https://github.com/Vasik96/gta5_imgui/raw/refs/heads/master/roboto_medium.ttf";
+
+
+    if (!std::filesystem::exists(fontPath))
+    {
+        if (DownloadFont(url, fontPath))
+        {
+            Logging::Log("Font downloaded successfully.", 1);
+        }
+        else
+        {
+            Logging::Log("failed to download font.", 3);
+            return;
+        }
+    }
+
+
+
+
+    ImGui::CreateContext();
+
+    ImGuiStyle& style = ImGui::GetStyle();
+    style.FrameRounding = 3.0f;
+    style.GrabRounding = 4.0f;
+
+
+    ImGui::StyleColorsClassic();
+
+    //ImGui::GetStyle().Colors[ImGuiCol_WindowBg].w = 0.7f;
+
+    // io & fonts
+    ImGuiIO& io = ImGui::GetIO();
+    io.Fonts->AddFontFromFileTTF(fontPath, 14.0f);
+    io.Fonts->Build();
+
+
+
+    ImGui_ImplWin32_Init(window);
+    ImGui_ImplDX11_Init(device, device_context);
+
+
+    Logging::Log("ImGui initialized", 1);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -550,41 +645,6 @@ void RenderOverlays(bool p_gta5NotRunning, bool p_fivemNotRunning) {
 
 
 
-/**
- **************************   Initialize ImGui ***************************************
-**/
-
-void InitializeImGui(HWND window, ID3D11Device* device, ID3D11DeviceContext* device_context) {
-    Logging::Log("Initializing ImGui...", 1);
-
-
-    const char* fontPath = "C:\\Users\\leman\\Desktop\\Soubory\\.projects\\gta5_imgui\\build\\roboto_medium.ttf";
-
-
-    ImGui::CreateContext();
-
-    ImGuiStyle& style = ImGui::GetStyle();
-    style.FrameRounding = 3.0f;
-    style.GrabRounding = 4.0f;
-
-
-    ImGui::StyleColorsClassic();
-
-    //ImGui::GetStyle().Colors[ImGuiCol_WindowBg].w = 0.7f;
-
-    // io & fonts
-    ImGuiIO& io = ImGui::GetIO();
-    io.Fonts->AddFontFromFileTTF(fontPath, 14.0f);
-
-
-
-
-    ImGui_ImplWin32_Init(window);
-    ImGui_ImplDX11_Init(device, device_context);
-
-
-    Logging::Log("ImGui initialized", 1);
-}
 
 
 
