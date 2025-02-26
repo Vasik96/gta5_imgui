@@ -10,25 +10,33 @@ WNDCLASSEX wc = {};
 LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM w_param, LPARAM l_param) {
     
     if (ImGui_ImplWin32_WndProcHandler(window, message, w_param, l_param)) {
-        return 0L;
+        return 0;
     }
 
     if (message == WM_DESTROY) {
         PostQuitMessage(0);
-        return 0L;
+        return 0;
     }
 
 
     //prevent ALT+F4, not intended to use alt+f4, use close button or "End" instead.
     if (message == WM_SYSCOMMAND) {
         if ((w_param & 0xFFF0) == SC_CLOSE) { // ALT+F4 triggers SC_CLOSE
-            return 0L; // Prevent closing
+            return 0; // Prevent closing
+        }
+        if ((w_param & 0xFFF0) == SC_KEYMENU) { // ALT+F4 triggers SC_CLOSE
+            return 0; // Prevent closing
         }
     }
 
 
     return DefWindowProc(window, message, w_param, l_param);
 }
+
+
+
+
+
 
 bool InitializeWindow(HINSTANCE instance, HWND& window, int& screenWidth, int& screenHeight, int cmd_show) {
     
@@ -42,6 +50,7 @@ bool InitializeWindow(HINSTANCE instance, HWND& window, int& screenWidth, int& s
         return false;
     }
 
+    
 
     window = CreateWindowEx(
         WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TOOLWINDOW,
@@ -50,7 +59,7 @@ bool InitializeWindow(HINSTANCE instance, HWND& window, int& screenWidth, int& s
         WS_POPUP,
         0, 
         0, 
-        screenWidth, 
+        screenWidth,
         screenHeight,
         nullptr, 
         nullptr, 

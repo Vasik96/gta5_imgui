@@ -13,11 +13,11 @@ void InitializeImGui(HWND window, ID3D11Device* device, ID3D11DeviceContext* dev
 void RenderImGui(
     bool p_gta5NotRunning,
     bool p_fivemNotRunning,
-    HWND window,
-    ID3D11DeviceContext* device_context,
-    ID3D11RenderTargetView* render_target_view,
-    IDXGISwapChain* swap_chain);
-void ShutdownImGui();
+    HWND window
+);
+
+
+void guiLoadImage(ID3D11Device* device, const char* imagePath, ID3D11ShaderResourceView** textureView);
 
 namespace gui {
     void LogImGui(const std::string& message, int errorLevel);

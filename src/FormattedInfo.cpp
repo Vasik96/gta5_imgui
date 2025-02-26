@@ -15,11 +15,17 @@
 #include <thread>
 #include <vector>
 #include <numeric>
+#include <fstream>
+#include <sstream>
+#include <string>
 
 
 #include "FormattedInfo.h"
 #include "Logging.h"
+#include "globals.h"
 
+
+bool globals::isTimerRunning = false;
 
 
 
@@ -144,6 +150,38 @@ namespace FormattedInfo {
         }
 
         return lastProcessCount;
+    }
+
+
+
+
+    std::string GetLogFromFile(const std::string& filePath) {
+        std::ifstream file(filePath); // Open the file
+        if (!file.is_open()) { // Check if the file was successfully opened
+            return "Error: Unable to open file at path: " + filePath;
+        }
+
+        std::stringstream buffer;
+        buffer << file.rdbuf(); // Read the entire file into the buffer
+        return buffer.str();    // Return the contents of the file as a string
+    }
+
+    
+
+    
+
+    
+
+
+    std::string GetFormattedTimer() {
+        if (!globals::isTimerRunning) {
+            return "0m 0s";
+        }
+        auto now = std::chrono::steady_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::seconds>(now - timerStart);
+        int minutes = static_cast<int>(duration.count() / 60);
+        int seconds = static_cast<int>(duration.count() % 60);
+        return std::to_string(minutes) + "m " + std::to_string(seconds) + "s";
     }
 
 

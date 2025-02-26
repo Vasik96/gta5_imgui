@@ -13,6 +13,8 @@ namespace FormattedInfo {
     std::string GetFormattedCPUUsage();
     std::string GetFormattedRAMUsage();
     std::string GetFormattedRP();
+    std::string GetLogFromFile(const std::string& filePath);
+    std::string GetFormattedTimer();
 }
 
 #endif

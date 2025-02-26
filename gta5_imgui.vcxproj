@@ -122,7 +122,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>d3d11.lib;dxgi.lib;d3d12.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;dxgi.lib;d3d12.lib;dxguid.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -141,7 +141,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>d3d11.lib;dxgi.lib;d3d12.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;dxgi.lib;d3d12.lib;dxguid.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -149,18 +149,21 @@
     <ClCompile Include="ext\imgui\imgui_demo.cpp" />
     <ClCompile Include="ext\imgui\imgui_draw.cpp" />
     <ClCompile Include="ext\imgui\imgui_impl_dx11.cpp" />
+    <ClCompile Include="ext\imgui\imgui_impl_dx12.cpp" />
     <ClCompile Include="ext\imgui\imgui_impl_win32.cpp" />
     <ClCompile Include="ext\imgui\imgui_tables.cpp" />
     <ClCompile Include="ext\imgui\imgui_widgets.cpp" />
     <ClCompile Include="src\Calculations.cpp" />
     <ClCompile Include="src\DXHandler.cpp" />
     <ClCompile Include="src\FormattedInfo.cpp" />
+    <ClCompile Include="src\globals.cpp" />
     <ClCompile Include="src\globals.h" />
     <ClCompile Include="src\gui.cpp" />
     <ClCompile Include="src\Logging.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\ProcessHandler.cpp" />
     <ClCompile Include="src\ExternalLogger.cpp" />
+    <ClCompile Include="src\System.cpp" />
     <ClCompile Include="src\TicTacToe.cpp" />
     <ClCompile Include="src\WindowHandler.cpp" />
   </ItemGroup>
@@ -257,11 +260,20 @@
     <ClInclude Include="ext\imgui\imconfig.h" />
     <ClInclude Include="ext\imgui\imgui.h" />
     <ClInclude Include="ext\imgui\imgui_impl_dx11.h" />
+    <ClInclude Include="ext\imgui\imgui_impl_dx12.h" />
     <ClInclude Include="ext\imgui\imgui_impl_win32.h" />
     <ClInclude Include="ext\imgui\imgui_internal.h" />
     <ClInclude Include="ext\imgui\imstb_rectpack.h" />
     <ClInclude Include="ext\imgui\imstb_textedit.h" />
     <ClInclude Include="ext\imgui\imstb_truetype.h" />
+    <ClInclude Include="ext\imgui_styleGTA5\Fonts\Header.hpp" />
+    <ClInclude Include="ext\imgui_styleGTA5\Fonts\Icons.hpp" />
+    <ClInclude Include="ext\imgui_styleGTA5\Fonts\Primary.hpp" />
+    <ClInclude Include="ext\imgui_styleGTA5\Include.hpp" />
+    <ClInclude Include="ext\imgui_styleGTA5\Items.hpp" />
+    <ClInclude Include="ext\imgui_styleGTA5\TextMultiColor.hpp" />
+    <ClInclude Include="ext\stb_image.h" />
+    <ClInclude Include="src\audio.h" />
     <ClInclude Include="src\Calculations.h" />
     <ClInclude Include="src\DXHandler.h" />
     <ClInclude Include="src\FormattedInfo.h" />
@@ -269,6 +281,7 @@
     <ClInclude Include="src\Logging.h" />
     <ClInclude Include="src\ExternalLogger.h" />
     <ClInclude Include="src\ProcessHandler.h" />
+    <ClInclude Include="src\System.h" />
     <ClInclude Include="src\TicTacToe.h" />
     <ClInclude Include="src\WindowHandler.h" />
   </ItemGroup>

@@ -182,8 +182,7 @@ void TicTacToe::BotMove() {
 
 
 void TicTacToe::DrawTicTacToeInsideWindow(ImVec4 playerColor, ImVec4 aiColor, ImVec4 drawColor) {
-    ImGui::TextColored(ImVec4(0.0f, 0.5f, 1.0f, 1.0f), "Tic-Tac-Toe"); //subTitleColor
-    ImGui::Spacing();
+
     ImGui::Spacing();
 
     if (result) {
@@ -201,6 +200,17 @@ void TicTacToe::DrawTicTacToeInsideWindow(ImVec4 playerColor, ImVec4 aiColor, Im
     }
     else {
         ImGui::Text("Your turn: %s", playerTurn ? "X" : "O");
+    }
+
+    ImGui::SameLine();
+
+    // Restart button
+    if (ImGui::Button("Restart")) {
+        ResetTicTacToe();
+    }
+
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("Restarts the Tic-Tac-Toe game.");
     }
 
     for (int i = 0; i < 3; ++i) {
@@ -246,14 +256,7 @@ void TicTacToe::DrawTicTacToeInsideWindow(ImVec4 playerColor, ImVec4 aiColor, Im
 
     if (result) gameFinished = true;
 
-    // Restart button
-    if (ImGui::Button("Restart")) {
-        ResetTicTacToe();
-    }
-
-    if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Restarts the Tic-Tac-Toe game.");
-    }
+   
 }
 
 

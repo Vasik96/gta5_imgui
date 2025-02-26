@@ -116,27 +116,37 @@ void ProcessHandler::ResetSession() {
 }
 
 
+
 void ProcessHandler::LaunchFiveM() {
-    // Define the path to FiveM.exe
-    const std::wstring fiveMPath = L"C:\\FiveM\\FiveM.exe";
+    // Retrieve the current username from the environment variable
+    wchar_t username[256];
+    DWORD usernameLen = GetEnvironmentVariable(L"USERNAME", username, sizeof(username) / sizeof(wchar_t));
+
+    if (usernameLen == 0) {
+        Logging::Log("Failed to retrieve username", 3);
+        ImGui::Text("Failed to retrieve username");
+        return;
+    }
+
+    // Construct the FiveM path using the username
+    std::wstring fiveMPath = L"C:\\Users\\" + std::wstring(username) + L"\\AppData\\Local\\FiveM\\FiveM.exe";
 
     Logging::Log("Launching FiveM...", 1);
 
-    // Create a new process to launch FiveM
-    STARTUPINFO si = { sizeof(STARTUPINFO) };
-    PROCESS_INFORMATION pi;
+    // Attempt to launch FiveM using ShellExecute to avoid administrator elevation
+    HINSTANCE result = ShellExecute(NULL, L"open", fiveMPath.c_str(), NULL, NULL, SW_SHOWNORMAL);
 
-    if (!CreateProcess(fiveMPath.c_str(), nullptr, nullptr, nullptr, FALSE, 0, nullptr, nullptr, &si, &pi)) {
-        // Handle error if the process creation fails
+    if ((int)result <= 32) {
+        // Handle error if ShellExecute fails (result is less than or equal to 32, meaning failure)
         Logging::Log("Failed to launch FiveM", 3);
         ImGui::Text("Failed to launch FiveM");
     }
     else {
-        // Wait for the process to be created successfully
-        CloseHandle(pi.hProcess);
-        CloseHandle(pi.hThread);
+        // Successfully launched FiveM
+        Logging::Log("FiveM launched successfully", 1);
     }
 }
+
 
 void ProcessHandler::LaunchGTA5(bool AntiCheatEnabled, bool intoOnline) {
     // Define the path to Steam.exe (usually installed in the default directory)

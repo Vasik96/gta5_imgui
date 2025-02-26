@@ -39,6 +39,16 @@ std::string Calculations::CalculateTotalMoney(int currentMoney, int moneyToRecei
     // Round to the nearest integer and convert to string
     int roundedTotal = static_cast<int>(std::round(total));
 
+    if (roundedTotal == -2) {
+        roundedTotal = 0;
+    }
+
+    else if (roundedTotal == -2147483648) {
+        roundedTotal = 0;
+    }
+
+
+
     return "$" + std::to_string(roundedTotal); // Return the result as a string with the dollar sign
 }
 
