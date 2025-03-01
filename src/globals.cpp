@@ -11,6 +11,11 @@
 #include "Logging.h"
 
 
+bool globals::pForceHideWindow = true;
+
+
+int screenWidth = GetSystemMetrics(SM_CXSCREEN);
+int screenHeight = GetSystemMetrics(SM_CYSCREEN);
 
 namespace globals {
     void shutdown(HWND& window, IDXGISwapChain*& swap_chain, ID3D11DeviceContext*& device_context,

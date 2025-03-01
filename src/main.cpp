@@ -52,54 +52,66 @@ bool isTimerRunning = false;
 
 VisibilityStatus visibilityStatus = VISIBLE;
 
-int screenWidth = GetSystemMetrics(SM_CXSCREEN);
-int screenHeight = GetSystemMetrics(SM_CYSCREEN);
+
+void AllocateConsole() {
+    // Allocate a new console
+    AllocConsole();
+
+    // Redirect standard output to the console
+    FILE* fileStream;
+    freopen_s(&fileStream, "CONOUT$", "w", stdout);
+    freopen_s(&fileStream, "CONOUT$", "w", stderr);
+    freopen_s(&fileStream, "CONIN$", "r", stdin);
+
+    // Sync C++ streams with C streams
+    std::ios::sync_with_stdio();
+}
+
+
+
 
 
 HWND window = nullptr;
 
 
+
+
 HHOOK hKeyboardHook;
-
-
-
-
-// Global key tracking
-static std::unordered_map<int, bool> activeKeys;
+std::unordered_map<int, bool> activeKeys;
+static std::unordered_map<int, bool> keyState;
 
 LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
     if (nCode >= 0) {
         if (visibilityStatus == VISIBLE) {
+
             KBDLLHOOKSTRUCT* pKeyboard = (KBDLLHOOKSTRUCT*)lParam;
 
-            // Get the foreground window and process ID
+            // Get the foreground window (the active window)
             HWND foregroundWindow = GetForegroundWindow();
+
+            // Get the process ID of the active window
             DWORD processId;
             GetWindowThreadProcessId(foregroundWindow, &processId);
 
-            // Get GTA 5's or FiveM's process ID (store it once for efficiency)
-            static DWORD gtaProcessId = 0;
+            // Get GTA 5's or FiveM's process ID, 
+            // dont make it static -> if i would launch gta 5, then quit it and launch fivem, it would not detect the change.
+            DWORD gtaProcessId = 0;
             if (gtaProcessId == 0) {
                 HWND gtaWindow = FindWindow(NULL, L"Grand Theft Auto V");
                 if (gtaWindow) {
                     GetWindowThreadProcessId(gtaWindow, &gtaProcessId);
                 }
                 else {
-                    HWND fiveMWindow = FindWindow(NULL, NULL);
-                    while (fiveMWindow) {
-                        wchar_t windowTitle[256];
-                        GetWindowText(fiveMWindow, windowTitle, 256);
-                        if (wcsstr(windowTitle, L"FiveM") != nullptr) {
-                            GetWindowThreadProcessId(fiveMWindow, &gtaProcessId);
-                            break;
-                        }
-                        fiveMWindow = GetNextWindow(fiveMWindow, GW_HWNDNEXT);
+                    gtaWindow = FindWindow(NULL, L"FiveM");
+                    if (gtaWindow) {
+                        GetWindowThreadProcessId(gtaWindow, &gtaProcessId);
                     }
                 }
             }
 
             // Define keys to block for GTA/FiveM when the menu is open
-            bool isBlockedKey = (pKeyboard->vkCode == VK_RETURN ||
+            bool isBlockedKey = (
+                pKeyboard->vkCode == VK_RETURN ||
                 pKeyboard->vkCode == VK_ESCAPE ||
                 pKeyboard->vkCode == VK_UP ||
                 pKeyboard->vkCode == VK_DOWN ||
@@ -107,51 +119,58 @@ LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
                 pKeyboard->vkCode == VK_RIGHT ||
                 pKeyboard->vkCode == 0x54 ||  // T key
                 pKeyboard->vkCode == 0x52 ||  // R key
-                pKeyboard->vkCode == 0x59);   // Y key
+                pKeyboard->vkCode == 0x59 ||  // Y key
+                pKeyboard->vkCode == VK_LBUTTON || // Left mouse button
+                pKeyboard->vkCode == VK_RBUTTON  // Right mouse button
+                );
 
-            // Check if the key is a text input key (letters, numbers, symbols)
-            bool isTextKey = (pKeyboard->vkCode >= 0x20 && pKeyboard->vkCode <= 0x5A) || // A-Z, Space, some symbols
-                (pKeyboard->vkCode >= 0x60 && pKeyboard->vkCode <= 0x69) || // Numpad 0-9
-                (pKeyboard->vkCode >= 0xBA && pKeyboard->vkCode <= 0xC0) || // Punctuation keys
-                (pKeyboard->vkCode >= 0xDB && pKeyboard->vkCode <= 0xDF);   // Brackets, etc.
+
+            // We simulate the key press for ImGui by posting the WM_KEYDOWN/WM_KEYUP message.
+            WPARAM key = pKeyboard->vkCode;
+            LPARAM lParam = pKeyboard->scanCode | (pKeyboard->flags << 16);  // Pack the scan code and flags into lParam
+
+
+
+            ImGuiIO& io = ImGui::GetIO();
+
 
             if (wParam == WM_KEYDOWN) {
-                // Prevent duplicate WM_KEYDOWN events for text input keys
-                if (isTextKey && activeKeys[pKeyboard->vkCode]) {
-                    return 1; // Block duplicate input
-                }
-                activeKeys[pKeyboard->vkCode] = true;
-
-                // Forward navigation keys but not text keys
-                if (!isTextKey) {
-                    PostMessage(window, WM_KEYDOWN, pKeyboard->vkCode, lParam);
+                if (!keyState[key]) {
+                    BYTE keyboardState[256];
+                    GetKeyboardState(keyboardState); //get keyboard state.
+                    WCHAR buffer[2];
+                    int result = ToUnicodeEx(
+                        pKeyboard->vkCode,
+                        pKeyboard->scanCode,
+                        keyboardState,
+                        buffer,
+                        2,
+                        1,
+                        GetKeyboardLayout(0)
+                    );
+                    if (result > 0) {
+                        io.AddInputCharacter(buffer[0]);
+                    }
+                    keyState[key] = true;
                 }
             }
             else if (wParam == WM_KEYUP) {
-                activeKeys[pKeyboard->vkCode] = false;
-                PostMessage(window, WM_KEYUP, pKeyboard->vkCode, lParam);
-            }
-            else if (wParam == WM_CHAR) {
-                // Forward only WM_CHAR for text input keys
-                if (isTextKey) {
-                    PostMessage(window, WM_CHAR, pKeyboard->vkCode, lParam);
-                    return 1; // Block additional WM_KEYDOWN from causing duplicate input
-                }
+                keyState[key] = false;
             }
 
             // If menu is open and we're inside GTA 5 or FiveM, block only specific keys
             if (processId == gtaProcessId && isBlockedKey) {
-                return 1; // Block this key for GTA 5 or FiveM
+                std::cout << "Blocking key for GTA/FiveM: " << pKeyboard->vkCode << std::endl;
+                return 1;  // Block this key for GTA 5 or FiveM
             }
+
+            // Otherwise, let the key go through (so it can interact with other apps, like the menu)
+            SendMessage(window, wParam, pKeyboard->vkCode, lParam);
         }
     }
 
     return CallNextHookEx(hKeyboardHook, nCode, wParam, lParam);
 }
-
-
-
-
 
 
 void InstallKeyboardHook() {
@@ -257,6 +276,7 @@ void HandleKeybinds(HWND window) {
                 }
             }
             else if (visibilityStatus == HIDDEN) {
+                globals::pForceHideWindow = true;
                 visibilityStatus = VISIBLE;
             }
             else if (visibilityStatus == OVERLAY) {
@@ -276,6 +296,7 @@ void HandleKeybinds(HWND window) {
                 SetWindowLongPtr(window, GWL_EXSTYLE,
                     GetWindowLongPtr(window, GWL_EXSTYLE) & ~WS_EX_TRANSPARENT);
 
+                globals::pForceHideWindow = true;
 
                 //FocusImGui();
 
@@ -352,6 +373,8 @@ void KeybindHandlerThread(HWND window) {
 
 
 INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) { 
+    //AllocateConsole();
+
     InstallKeyboardHook();
 
     Logging::CleanupTemporaryLogs();
@@ -401,6 +424,18 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
             break;
         }
 
+        if (!globals::pForceHideWindow) {
+            globals::pForceHideWindow = true;
+
+            if (globals::overlayToggled) {
+                visibilityStatus = OVERLAY;
+            }
+            else {
+                visibilityStatus = HIDDEN;
+                globals::windowVisible = false;
+                ShowWindow(window, SW_HIDE);
+            }
+        }
 
 
 
@@ -454,7 +489,7 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show) {
     }
 
 
-    //UnhookKeyboard();
+    UninstallKeyboardHook();
 
     keybindThreadRunning = false;
     if (insertKeyThread.joinable()) {

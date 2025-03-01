@@ -5,6 +5,10 @@
 
 #include <chrono>
 
+
+extern int screenWidth;
+extern int screenHeight;
+
 namespace globals {
 
     extern std::string lastTimerResult;
@@ -15,6 +19,8 @@ namespace globals {
 	extern bool running;
 
     extern bool overlayToggled;
+
+    extern bool pForceHideWindow;
 
     void shutdown(HWND& window, IDXGISwapChain*& swap_chain, ID3D11DeviceContext*& device_context,
         ID3D11Device*& device, ID3D11RenderTargetView*& render_target_view);

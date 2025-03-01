@@ -428,5 +428,11 @@
     <ClInclude Include="src\audio.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="ext\json.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ext\json_fwd.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
