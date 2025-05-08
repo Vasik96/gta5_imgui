@@ -9,7 +9,11 @@
 #include <imgui/imgui_impl_dx11.h>
 
 
-void InitializeImGui(HWND window, ID3D11Device* device, ID3D11DeviceContext* device_context);
+void InitializeImGui(
+    HWND window, 
+    ID3D11Device* device, 
+    ID3D11DeviceContext* device_context
+);
 void RenderImGui(
     bool p_gta5NotRunning,
     bool p_fivemNotRunning,
@@ -17,9 +21,14 @@ void RenderImGui(
 );
 
 
-void guiLoadImage(ID3D11Device* device, const char* imagePath, ID3D11ShaderResourceView** textureView);
+void guiLoadImage(
+    ID3D11Device* device,
+    const char* imagePath, 
+    ID3D11ShaderResourceView** textureView
+);
 
-namespace gui {
+namespace gui
+{
     void LogImGui(const std::string& message, int errorLevel);
 }
 

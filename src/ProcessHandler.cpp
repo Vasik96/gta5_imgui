@@ -11,13 +11,15 @@
 #include <sstream>
 #include <chrono>
 #include <thread>
-
+#include <shlobj.h>
+#include <atlbase.h>
 
 // imgui
 #include <imgui/imgui.h>
 
 #include "ProcessHandler.h"
 #include "Logging.h"
+#include "globals.h"
 
 
 typedef LONG(NTAPI* NtSuspendProcessFn)(IN HANDLE ProcessHandle);
@@ -55,7 +57,8 @@ bool ProcessHandler::TerminateGTA5() {
     if (Process32First(snapshot, &processEntry)) {
         
         do {
-            if (_wcsicmp(processEntry.szExeFile, L"GTA5.exe") == 0 ||
+            std::this_thread::yield();
+            if (_wcsicmp(processEntry.szExeFile, globals::gtaProcess.c_str()) == 0 ||
                 _wcsicmp(processEntry.szExeFile, L"FiveM.exe") == 0 ||
                 _wcsnicmp(processEntry.szExeFile, L"FiveM_", 6) == 0) { // Check for processes starting with "FiveM_"
                 HANDLE process = OpenProcess(PROCESS_TERMINATE, FALSE, processEntry.th32ProcessID);
@@ -100,6 +103,7 @@ bool ProcessHandler::IsProcessRunning(const wchar_t* processName) {
 
     if (Process32First(snapshot, &processEntry)) {
         do {
+            std::this_thread::yield();
             if (_wcsicmp(processEntry.szExeFile, processName) == 0) {
                 isRunning = true;
                 break;
@@ -117,6 +121,22 @@ void ProcessHandler::ResetSession() {
 
 
 
+void ShellExecuteFromExplorer(
+    PCWSTR pszFile,
+    PCWSTR pszParameters = nullptr,
+    PCWSTR pszDirectory = nullptr,
+    PCWSTR pszOperation = nullptr,
+    int nShowCmd = SW_SHOWNORMAL)
+{
+    // Using ShellExecute with explorer to run the process as the current user
+    HINSTANCE hInst = ShellExecute(NULL, L"open", L"explorer.exe", pszFile, pszDirectory, nShowCmd);
+    if ((uintptr_t)hInst <= 32) {
+        // Handle error
+        Logging::Log("Failed to launch FiveM via explorer", 3);
+        ImGui::Text("Failed to launch FiveM via explorer");
+    }
+}
+
 void ProcessHandler::LaunchFiveM() {
     // Retrieve the current username from the environment variable
     wchar_t username[256];
@@ -133,18 +153,8 @@ void ProcessHandler::LaunchFiveM() {
 
     Logging::Log("Launching FiveM...", 1);
 
-    // Attempt to launch FiveM using ShellExecute to avoid administrator elevation
-    HINSTANCE result = ShellExecute(NULL, L"open", fiveMPath.c_str(), NULL, NULL, SW_SHOWNORMAL);
-
-    if ((int)result <= 32) {
-        // Handle error if ShellExecute fails (result is less than or equal to 32, meaning failure)
-        Logging::Log("Failed to launch FiveM", 3);
-        ImGui::Text("Failed to launch FiveM");
-    }
-    else {
-        // Successfully launched FiveM
-        Logging::Log("FiveM launched successfully", 1);
-    }
+    // Use ShellExecuteFromExplorer to launch FiveM without elevated privileges
+    ShellExecuteFromExplorer(fiveMPath.c_str(), NULL, NULL, L"open", SW_SHOWNORMAL);
 }
 
 
@@ -153,7 +163,7 @@ void ProcessHandler::LaunchGTA5(bool AntiCheatEnabled, bool intoOnline) {
     const std::wstring steamPath = L"C:\\Steam\\Steam.exe";
 
     // GTA5 App ID for Steam
-    const std::wstring gta5AppID = L"271590"; // This is the Steam App ID for GTA5
+    const std::wstring gta5AppID = L"3240220"; // This is the Steam App ID for GTA5 // enhanced: 3240220; legacy: 271590
 
     // Argument for launching GTA5 with or without BattleEye
     std::wstring arguments = L"-applaunch " + gta5AppID;
@@ -190,7 +200,7 @@ void ProcessHandler::LaunchGTA5(bool AntiCheatEnabled, bool intoOnline) {
 
 void ProcessHandler::DesyncFromGTAOnline() {
     // Check if GTA5.exe process is running
-    if (!IsProcessRunning(L"GTA5.exe")) {
+    if (!IsProcessRunning(globals::gtaProcess.c_str())) {
         return;
     }
 
@@ -225,7 +235,8 @@ void ProcessHandler::DesyncFromGTAOnline() {
 
     if (Process32First(snapshot, &processEntry)) {
         do {
-            if (_wcsicmp(processEntry.szExeFile, L"GTA5.exe") == 0) {
+            std::this_thread::yield();
+            if (_wcsicmp(processEntry.szExeFile, globals::gtaProcess.c_str()) == 0) {
                 // Open the process with the necessary privileges to suspend and resume
                 HANDLE process = OpenProcess(PROCESS_SUSPEND_RESUME, FALSE, processEntry.th32ProcessID);
                 if (process) {

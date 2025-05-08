@@ -364,7 +364,15 @@
             "c:\\program files\\microsoft visual studio\\2022\\community\\vc\\tools\\msvc\\14.43.34808\\include\\xsmf_control.h",
             "c:\\program files\\microsoft visual studio\\2022\\community\\vc\\tools\\msvc\\14.43.34808\\include\\sstream",
             "c:\\program files\\microsoft visual studio\\2022\\community\\vc\\tools\\msvc\\14.43.34808\\include\\string",
-            "c:\\program files\\microsoft visual studio\\2022\\community\\vc\\tools\\msvc\\14.43.34808\\include\\vector"
+            "c:\\program files\\microsoft visual studio\\2022\\community\\vc\\tools\\msvc\\14.43.34808\\include\\vector",
+            "c:\\users\\leman\\desktop\\soubory\\.projects\\gta5_imgui\\src\\fpstracker.h",
+            "c:\\program files (x86)\\windows kits\\10\\include\\10.0.22621.0\\shared\\evntrace.h",
+            "c:\\program files (x86)\\windows kits\\10\\include\\10.0.22621.0\\shared\\guiddef.h",
+            "c:\\program files (x86)\\windows kits\\10\\include\\10.0.22621.0\\shared\\wmistr.h",
+            "c:\\program files (x86)\\windows kits\\10\\include\\10.0.22621.0\\um\\tdh.h",
+            "c:\\program files (x86)\\windows kits\\10\\include\\10.0.22621.0\\um\\evntcons.h",
+            "c:\\program files (x86)\\windows kits\\10\\include\\10.0.22621.0\\shared\\evntprov.h",
+            "c:\\program files (x86)\\windows kits\\10\\include\\10.0.22621.0\\um\\psapi.h"
         ],
         "ImportedModules": [],
         "ImportedHeaderUnits": []

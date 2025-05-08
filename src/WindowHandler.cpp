@@ -1,6 +1,8 @@
-#include "WindowHandler.h"
 #include <dwmapi.h>
+#include <iostream>
 
+#include "WindowHandler.h"
+#include "KeyboardInput.h"
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
@@ -29,10 +31,13 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM w_param, LPAR
         }
     }
 
+    if (message == WM_INPUT) {
+        KeyboardInput::ProcessRawInput(l_param);
+    }
+
 
     return DefWindowProc(window, message, w_param, l_param);
 }
-
 
 
 
@@ -44,7 +49,7 @@ bool InitializeWindow(HINSTANCE instance, HWND& window, int& screenWidth, int& s
     wc.style = CS_HREDRAW | CS_VREDRAW;
     wc.lpfnWndProc = WindowProcedure;
     wc.hInstance = instance;
-    wc.lpszClassName = L"External overlay class";
+    wc.lpszClassName = L"GTA 5 Overlay";
 
     if (!RegisterClassExW(&wc)) {
         return false;
@@ -66,6 +71,8 @@ bool InitializeWindow(HINSTANCE instance, HWND& window, int& screenWidth, int& s
         instance, 
         nullptr
     );
+
+    KeyboardInput::RegisterRawInput(window);
 
     if (!window) {
         return false;

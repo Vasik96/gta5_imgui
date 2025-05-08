@@ -15,6 +15,7 @@
 // imgui
 #include <imgui/imgui.h>
 
+#include "IconsFontAwesome6.h"
 
 
 namespace TicTacToe {
@@ -119,62 +120,65 @@ int TicTacToe::Minimax(int depth, bool isMaximizingPlayer) {
 void TicTacToe::BotMove() {
     if (gameFinished || result) return;
 
-    int bestVal = -1000;
-    int bestRow = -1, bestCol = -1;
-
-    // First, check if the bot can win in the next move
+    // Check if it's the bot's first move (no 'O' on the board)
+    bool isFirstMove = true;
     for (int i = 0; i < 3; ++i) {
         for (int j = 0; j < 3; ++j) {
-            if (board[i][j] == ' ') {
-                board[i][j] = 'O'; // Bot's move
-                if (CheckWinner() == "Win") {
-                    board[i][j] = 'O'; // Make the move
-                    playerTurn = true;  // Switch turn after the bot moves
-                    return;
-                }
-                board[i][j] = ' '; // Undo move
+            if (board[i][j] == 'O') {  // Look for existing bot moves
+                isFirstMove = false;
+                break;
             }
         }
+        if (!isFirstMove) break;
     }
 
-    // Check if the player can win and block them
-    for (int i = 0; i < 3; ++i) {
-        for (int j = 0; j < 3; ++j) {
-            if (board[i][j] == ' ') {
-                board[i][j] = 'X'; // Pretend it's the player's turn
-                if (CheckWinner() == "Lose") {
-                    board[i][j] = 'O'; // Block the player's winning move
-                    playerTurn = true;  // Switch turn after the bot moves
-                    return;
-                }
-                board[i][j] = ' '; // Undo move
-            }
-        }
-    }
-
-    // If no immediate threats or opportunities, pick the best move (Minimax)
-    for (int i = 0; i < 3; ++i) {
-        for (int j = 0; j < 3; ++j) {
-            if (board[i][j] == ' ') {
-                board[i][j] = 'O'; // Make the move
-                int moveVal = Minimax(0, false); // Evaluate the move
-                board[i][j] = ' '; // Undo the move
-
-                if (moveVal > bestVal) {
-                    bestRow = i;
-                    bestCol = j;
-                    bestVal = moveVal;
+    if (isFirstMove) {
+        // Random first move (all empty cells are valid)
+        std::vector<std::pair<int, int>> emptyCells;
+        for (int i = 0; i < 3; ++i) {
+            for (int j = 0; j < 3; ++j) {
+                if (board[i][j] == ' ') {
+                    emptyCells.push_back({ i, j });
                 }
             }
         }
-    }
 
-    // Make the best move
-    if (bestRow != -1 && bestCol != -1) {
-        board[bestRow][bestCol] = 'O';
-        playerTurn = true; // Switch turn after the bot moves
+        if (!emptyCells.empty()) {
+            int randomIndex = rand() % emptyCells.size();
+            board[emptyCells[randomIndex].first][emptyCells[randomIndex].second] = 'O';
+            playerTurn = true;
+            return;
+        }
+    }
+    else {
+        // Otherwise, follow the regular Minimax logic for bot move
+        int bestVal = -1000;
+        int bestRow = -1, bestCol = -1;
+
+        for (int i = 0; i < 3; ++i) {
+            for (int j = 0; j < 3; ++j) {
+                if (board[i][j] == ' ') {
+                    board[i][j] = 'O'; // Bot's move
+                    int moveVal = Minimax(0, false); // Evaluate the move
+                    board[i][j] = ' '; // Undo the move
+
+                    if (moveVal > bestVal) {
+                        bestRow = i;
+                        bestCol = j;
+                        bestVal = moveVal;
+                    }
+                }
+            }
+        }
+
+        // Make the best move
+        if (bestRow != -1 && bestCol != -1) {
+            board[bestRow][bestCol] = 'O';
+            playerTurn = true; // Switch turn after the bot moves
+        }
     }
 }
+
 
 
 
@@ -205,7 +209,7 @@ void TicTacToe::DrawTicTacToeInsideWindow(ImVec4 playerColor, ImVec4 aiColor, Im
     ImGui::SameLine();
 
     // Restart button
-    if (ImGui::Button("Restart")) {
+    if (ImGui::Button(ICON_FA_ROTATE_LEFT " Restart")) {
         ResetTicTacToe();
     }
 

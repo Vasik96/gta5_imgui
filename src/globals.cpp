@@ -3,23 +3,103 @@
 #include <Windows.h>
 #include <thread>
 #include <chrono>
+#include <cstdlib>
 
 #include "globals.h"
 #include "imgui/imgui.h"
 #include "imgui/imgui_impl_dx11.h"
 #include "imgui/imgui_impl_win32.h"
 #include "Logging.h"
+#include "ProcessHandler.h"
 
+#include "discord/include/discord_register.h"
+#include "discord/include/discord_rpc.h"
+
+const std::wstring globals::gtaProcess = L"GTA5_Enhanced.exe";
+std::chrono::time_point<std::chrono::steady_clock> globals::menu_uptime;
 
 bool globals::pForceHideWindow = true;
+
 
 
 int screenWidth = GetSystemMetrics(SM_CXSCREEN);
 int screenHeight = GetSystemMetrics(SM_CYSCREEN);
 
-namespace globals {
-    void shutdown(HWND& window, IDXGISwapChain*& swap_chain, ID3D11DeviceContext*& device_context,
-        ID3D11Device*& device, ID3D11RenderTargetView*& render_target_view) {
+namespace globals
+{
+    namespace discord
+    {
+        const char* APPLICATION_ID = "1363270070301884536";
+        static const time_t startTime = time(0);
+
+        void UpdatePresence()
+        {
+            std::cout << "updating presence\n";
+
+
+            DiscordRichPresence discordPresence;
+            memset(&discordPresence, 0, sizeof(discordPresence));
+
+            if (visibilityStatus == VISIBLE)
+                discordPresence.details = "in menu";
+            else if (visibilityStatus == OVERLAY)
+                discordPresence.details = "overlay";
+            else
+                discordPresence.details = "menu hidden";
+
+            std::string stateText = "Idle";
+            if (ProcessHandler::IsProcessRunning(globals::gtaProcess.c_str()))
+            {
+                stateText = "Playing GTA 5";
+            }
+            else if (ProcessHandler::IsProcessRunning(L"FiveM.exe"))
+            {
+                Logging::Log("fivem is running", 1);
+                stateText = "Playing FiveM";
+            }
+
+            discordPresence.state = stateText.c_str();
+            discordPresence.startTimestamp = startTime;
+            Discord_UpdatePresence(&discordPresence);
+        }
+
+        void Initialize()
+        {
+            DiscordEventHandlers handlers;
+            memset(&handlers, 0, sizeof(handlers));
+            Discord_Initialize(APPLICATION_ID, &handlers, TRUE, nullptr);
+        }
+    }
+
+
+
+    void ExecuteCommandAsync(const char* command)
+    {
+        STARTUPINFOA si = { sizeof(STARTUPINFOA) };
+        PROCESS_INFORMATION pi;
+        si.dwFlags = STARTF_USESHOWWINDOW;
+        si.wShowWindow = SW_HIDE; // Hide command window
+
+        if (CreateProcessA(nullptr, (LPSTR)command, nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi))
+        {
+            CloseHandle(pi.hThread);
+            CloseHandle(pi.hProcess);
+        }
+    }
+
+    void NO_SAVE__AddFirewallRule()
+    {
+        ExecuteCommandAsync(R"(cmd /c netsh advfirewall firewall add rule name="gta5_nosave" dir=out action=block remoteip=192.81.241.171)");
+    }
+
+    void NO_SAVE__RemoveFirewallRule()
+    {
+        ExecuteCommandAsync(R"(cmd /c netsh advfirewall firewall delete rule name="gta5_nosave")");
+    }
+
+
+    void shutdown(HWND& window)
+    {
 
         isTimerRunning = false;
             
@@ -30,11 +110,6 @@ namespace globals {
         ImGui_ImplWin32_Shutdown();
         ImGui::DestroyContext();
 
-        if (swap_chain) swap_chain->Release();
-        if (device_context) device_context->Release();
-        if (device) device->Release();
-        if (render_target_view) render_target_view->Release();
-
 
         DestroyWindow(window);
     }
@@ -44,12 +119,14 @@ namespace globals {
 
 
 
-BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam) {
+BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam)
+{
     char windowTitle[256];
     GetWindowTextA(hwnd, windowTitle, sizeof(windowTitle));
 
     std::string title(windowTitle);
-    if (title.find("FiveM") != std::string::npos || title.find("Grand Theft Auto V") != std::string::npos) {
+    if (title.find("FiveM") != std::string::npos || title.find("Grand Theft Auto V") != std::string::npos)
+    {
         *(HWND*)lParam = hwnd;
         return FALSE; // Stop enumeration
     }
@@ -57,15 +134,18 @@ BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam) {
     return TRUE; // Continue enumeration
 }
 
-void FocusGame() {
+void FocusGame()
+{
     HWND hwnd = nullptr;
     EnumWindows(EnumWindowsProc, (LPARAM)&hwnd);
 
-    if (hwnd) {
+    if (hwnd)
+    {
         std::cout << "Found FiveM window" << std::endl;
 
         // Ensure the game is not minimized
-        if (IsIconic(hwnd)) {
+        if (IsIconic(hwnd))
+        {
             ShowWindow(hwnd, SW_RESTORE);
         }
 
@@ -78,7 +158,8 @@ void FocusGame() {
         DWORD fgThreadId = GetWindowThreadProcessId(GetForegroundWindow(), NULL);
         DWORD targetThreadId = GetWindowThreadProcessId(hwnd, NULL);
 
-        if (fgThreadId != targetThreadId) {
+        if (fgThreadId != targetThreadId)
+        {
             AttachThreadInput(fgThreadId, targetThreadId, TRUE);
             SetForegroundWindow(hwnd);
             AttachThreadInput(fgThreadId, targetThreadId, FALSE);
@@ -101,7 +182,8 @@ void FocusGame() {
         
         // Clip cursor inside game window (forces input capture)
         RECT rect;
-        if (GetWindowRect(hwnd, &rect)) {
+        if (GetWindowRect(hwnd, &rect))
+        {
             ClipCursor(&rect);
         }
 
@@ -139,9 +221,4 @@ void FocusGame() {
         Sleep(1000);
         ClipCursor(nullptr);
     }
-}
-
-void globals::FocusGameNonBlocking() {
-    std::thread focusThread(FocusGame);
-    focusThread.detach();
 }

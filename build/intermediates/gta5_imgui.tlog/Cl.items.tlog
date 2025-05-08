@@ -1,3 +1,9 @@
+C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\ext\discord\src\connection_win.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\connection_win.obj
+C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\ext\discord\src\discord_register_win.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\discord_register_win.obj
+C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\ext\discord\src\discord_rpc.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\discord_rpc.obj
+C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\ext\discord\src\dllmain.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\dllmain.obj
+C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\ext\discord\src\rpc_connection.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\rpc_connection.obj
+C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\ext\discord\src\serialization.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\serialization.obj
 C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\ext\imgui\imgui.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\imgui.obj
 C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\ext\imgui\imgui_demo.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\imgui_demo.obj
 C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\ext\imgui\imgui_draw.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\imgui_draw.obj
@@ -6,6 +12,10 @@ C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\ext\imgui\imgui_impl_dx12.cp
 C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\ext\imgui\imgui_impl_win32.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\imgui_impl_win32.obj
 C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\ext\imgui\imgui_tables.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\imgui_tables.obj
 C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\ext\imgui\imgui_widgets.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\imgui_widgets.obj
+C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\src\FPSTracker.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\FPSTracker.obj
+C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\src\fps_test.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\fps_test.obj
+C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\src\KeyboardInput.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\KeyboardInput.obj
+C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\src\NetworkInfo.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\NetworkInfo.obj
 C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\src\Calculations.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\Calculations.obj
 C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\src\DXHandler.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\DXHandler.obj
 C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\src\FormattedInfo.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\FormattedInfo.obj
@@ -13,6 +23,7 @@ C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\src\globals.cpp;C:\Users\lem
 C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\src\globals.h;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\globals.h.obj
 C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\src\gui.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\gui.obj
 C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\src\Logging.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\Logging.obj
+C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\src\LoggingServer.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\LoggingServer.obj
 C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\src\main.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\main.obj
 C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\src\ProcessHandler.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\ProcessHandler.obj
 C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\src\ExternalLogger.cpp;C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\intermediates\ExternalLogger.obj

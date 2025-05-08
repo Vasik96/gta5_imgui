@@ -7,7 +7,8 @@
 #include <imgui/imgui_impl_dx11.h>
 #include <imgui/imgui_impl_win32.h>
 
-namespace FormattedInfo {
+namespace FormattedInfo
+{
     std::string GetFormattedTime();
     std::string GetFormattedDate();
     std::string GetFormattedCPUUsage();
@@ -15,6 +16,7 @@ namespace FormattedInfo {
     std::string GetFormattedRP();
     std::string GetLogFromFile(const std::string& filePath);
     std::string GetFormattedTimer();
+    std::string GetFormattedMenuUptime();
 }
 
 #endif

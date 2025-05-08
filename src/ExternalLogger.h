@@ -4,9 +4,10 @@
 
 #include <string>
 
-namespace ExternalLogger {
-    void InitializeExternalLogger(); // Method to initialize the external log file
-    void LogExternal(const std::string& message); // Method to log messages
+namespace ExternalLogger
+{
+    void InitializeExternalLogger(const std::string& serverIP, int port);
+    void LogExternal(const std::string& message);
 }
 
 #endif // EXTERNAL_LOGGER_H

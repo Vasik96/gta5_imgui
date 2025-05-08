@@ -1,52 +1,43 @@
 #include "ExternalLogger.h"
-#include <fstream>
-#include <windows.h>
-#include <direct.h>
-#include <vector>
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <iostream>
 
-namespace ExternalLogger {
-    std::string logFilePath;
+#pragma comment(lib, "ws2_32.lib")
 
-    void InitializeExternalLogger() {
-        // Get the path to the system's temporary directory
-        wchar_t tempPath[MAX_PATH];
-        if (GetTempPathW(MAX_PATH, tempPath)) {
-            // Convert the wide string to a standard string
-            std::wstring widePath(tempPath);
-            std::wstring wideLogFilePath = widePath + L"external_logs.txt";
+namespace ExternalLogger
+{
+    std::string serverIP;
+    int serverPort;
 
-            // Convert wideLogFilePath to narrow string using WideCharToMultiByte
-            int bufferSize = WideCharToMultiByte(CP_UTF8, 0, wideLogFilePath.c_str(), -1, nullptr, 0, nullptr, nullptr);
-            if (bufferSize > 0) {
-                std::vector<char> buffer(bufferSize);
-                WideCharToMultiByte(CP_UTF8, 0, wideLogFilePath.c_str(), -1, buffer.data(), bufferSize, nullptr, nullptr);
-                logFilePath = std::string(buffer.data());
-            }
-            else {
-                // Handle error in conversion if needed
-                return;
-            }
-
-            // Clear the log file at the end of the method
-            std::ofstream outFile(logFilePath, std::ios::trunc);
-            if (outFile.is_open()) {
-                outFile.close();  // Close the file after clearing its contents
-            }
-        }
+    void InitializeExternalLogger(const std::string& ip, int port)
+    {
+        serverIP = ip;
+        serverPort = port;
     }
 
-    // Method to log messages to the external log file
-    void LogExternal(const std::string& message) {
-        // If the log file path is not set, initialize the external logger
-        if (logFilePath.empty()) {
-            InitializeExternalLogger();
+    void LogExternal(const std::string& message)
+    {
+        WSADATA wsaData;
+        WSAStartup(MAKEWORD(2, 2), &wsaData);
+
+        SOCKET clientSocket = socket(AF_INET, SOCK_STREAM, 0);
+        if (clientSocket == INVALID_SOCKET) return;
+
+        sockaddr_in serverAddr;
+        serverAddr.sin_family = AF_INET;
+        inet_pton(AF_INET, serverIP.c_str(), &serverAddr.sin_addr);
+        serverAddr.sin_port = htons(serverPort);
+
+        if (connect(clientSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR)
+        {
+            closesocket(clientSocket);
+            WSACleanup();
+            return;
         }
 
-        // Open the file in append mode and write the log message
-        std::ofstream outFile(logFilePath, std::ios::app);
-        if (outFile.is_open()) {
-            outFile << message << std::endl;
-            outFile.close();
-        }
+        send(clientSocket, message.c_str(), message.size(), 0);
+        closesocket(clientSocket);
+        WSACleanup();
     }
 }

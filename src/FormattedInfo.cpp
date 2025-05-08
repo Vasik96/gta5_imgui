@@ -29,7 +29,8 @@ bool globals::isTimerRunning = false;
 
 
 
-namespace FormattedInfo {
+namespace FormattedInfo
+{
     std::string lastCpuUsage = "0%";
     std::string lastRamUsage = "0/0GB";
     std::string lastProcessCount = "0";
@@ -44,7 +45,8 @@ namespace FormattedInfo {
 
 
     // Gets the system time in a formatted way (example: 15:30)
-    std::string GetFormattedTime() {
+    std::string GetFormattedTime()
+    {
         // Get current system time
         auto now = std::chrono::system_clock::now();
         std::time_t nowTime = std::chrono::system_clock::to_time_t(now);
@@ -61,7 +63,8 @@ namespace FormattedInfo {
         return formattedTime.str();
     }
 
-    std::string GetFormattedDate() {
+    std::string GetFormattedDate()
+    {
         char buffer[11]; // Buffer to store the formatted date (e.g., "25/12/2024\0")
         std::time_t now = std::time(nullptr); // Get the current time
         std::tm localTime; // To store the local time
@@ -74,13 +77,16 @@ namespace FormattedInfo {
 
 
     //1.5s - reasonable cooldown to prevent flashing info in imgui and at the same time retrieve accurate information
-    std::string GetFormattedCPUUsage() {
+    std::string GetFormattedCPUUsage()
+    {
         auto now = std::chrono::steady_clock::now();
         std::chrono::duration<float> elapsed = now - lastCpuUpdate;
 
-        if (elapsed.count() >= 1.5f) {
+        if (elapsed.count() >= 1.5f)
+        {
             FILETIME idleTime, kernelTime, userTime;
-            if (GetSystemTimes(&idleTime, &kernelTime, &userTime)) {
+            if (GetSystemTimes(&idleTime, &kernelTime, &userTime))
+            {
                 ULONGLONG idle = ((ULONGLONG)idleTime.dwHighDateTime << 32) | idleTime.dwLowDateTime;
                 ULONGLONG kernel = ((ULONGLONG)kernelTime.dwHighDateTime << 32) | kernelTime.dwLowDateTime;
                 ULONGLONG user = ((ULONGLONG)userTime.dwHighDateTime << 32) | userTime.dwLowDateTime;
@@ -96,10 +102,12 @@ namespace FormattedInfo {
                 prevUser = user;
 
                 ULONGLONG total = deltaKernel + deltaUser;
-                if (total == 0) {
+                if (total == 0)
+                {
                     lastCpuUsage = "0%";
                 }
-                else {
+                else 
+                {
                     int cpuUsage = (int)((deltaKernel + deltaUser - deltaIdle) * 100 / total);
                     lastCpuUsage = std::to_string(cpuUsage) + "%";
                 }
@@ -111,14 +119,18 @@ namespace FormattedInfo {
         return lastCpuUsage;
     }
 
-    std::string GetFormattedRAMUsage() {
+
+    std::string GetFormattedRAMUsage()
+    {
         auto now = std::chrono::steady_clock::now();
         std::chrono::duration<float> elapsed = now - lastRamUpdate;
 
-        if (elapsed.count() >= 1.5f) {
+        if (elapsed.count() >= 1.5f)
+        {
             MEMORYSTATUSEX memStatus;
             memStatus.dwLength = sizeof(MEMORYSTATUSEX);
-            if (GlobalMemoryStatusEx(&memStatus)) {
+            if (GlobalMemoryStatusEx(&memStatus))
+            {
                 double totalMemory = static_cast<double>(memStatus.ullTotalPhys) / (1024 * 1024 * 1024);
                 double usedMemory = static_cast<double>(memStatus.ullTotalPhys - memStatus.ullAvailPhys) / (1024 * 1024 * 1024);
 
@@ -134,14 +146,17 @@ namespace FormattedInfo {
         return lastRamUsage;
     }
 
-    std::string GetFormattedRP() {
+    std::string GetFormattedRP()
+    {
         auto now = std::chrono::steady_clock::now();
         std::chrono::duration<float> elapsed = now - lastProcessUpdate;
 
-        if (elapsed.count() >= 1.5f) {
+        if (elapsed.count() >= 1.5f)
+        {
             DWORD processIds[1024];
             DWORD bytesReturned;
-            if (EnumProcesses(processIds, sizeof(processIds), &bytesReturned)) {
+            if (EnumProcesses(processIds, sizeof(processIds), &bytesReturned))
+            {
                 DWORD processCount = bytesReturned / sizeof(DWORD);
                 lastProcessCount = std::to_string(processCount);
             }
@@ -155,9 +170,11 @@ namespace FormattedInfo {
 
 
 
-    std::string GetLogFromFile(const std::string& filePath) {
-        std::ifstream file(filePath); // Open the file
-        if (!file.is_open()) { // Check if the file was successfully opened
+    std::string GetLogFromFile(const std::string& filePath)
+    {
+        std::ifstream file(filePath);
+        if (!file.is_open())
+        {
             return "Error: Unable to open file at path: " + filePath;
         }
 
@@ -166,15 +183,12 @@ namespace FormattedInfo {
         return buffer.str();    // Return the contents of the file as a string
     }
 
-    
-
-    
-
-    
 
 
-    std::string GetFormattedTimer() {
-        if (!globals::isTimerRunning) {
+    std::string GetFormattedTimer()
+    {
+        if (!globals::isTimerRunning)
+        {
             return "0m 0s";
         }
         auto now = std::chrono::steady_clock::now();
@@ -183,6 +197,24 @@ namespace FormattedInfo {
         int seconds = static_cast<int>(duration.count() % 60);
         return std::to_string(minutes) + "m " + std::to_string(seconds) + "s";
     }
+
+
+    std::string GetFormattedMenuUptime()
+    {
+        using namespace std::chrono;
+        auto now = steady_clock::now();
+        auto elapsed = duration_cast<seconds>(now - globals::menu_uptime).count();
+
+        int hrs = int(elapsed / 3600);
+        int mins = int((elapsed % 3600) / 60);
+        int secs = int(elapsed % 60);
+
+        char buf[32];
+        snprintf(buf, sizeof(buf), "%dh %dm %ds", hrs, mins, secs);
+        return std::string(buf);
+    }
+
+
 
 
 }

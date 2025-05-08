@@ -4,12 +4,24 @@
 #include <Windows.h>
 
 #include <chrono>
+#include "FPSTracker.h"
+#include <thread>
 
 
 extern int screenWidth;
 extern int screenHeight;
 
-namespace globals {
+namespace globals
+{
+    extern std::chrono::time_point<std::chrono::steady_clock> menu_uptime;
+
+
+    namespace discord
+    {
+        void UpdatePresence();
+        void Initialize();
+    }
+
 
     extern std::string lastTimerResult;
 
@@ -22,15 +34,20 @@ namespace globals {
 
     extern bool pForceHideWindow;
 
-    void shutdown(HWND& window, IDXGISwapChain*& swap_chain, ID3D11DeviceContext*& device_context,
-        ID3D11Device*& device, ID3D11RenderTargetView*& render_target_view);
+    extern const std::wstring gtaProcess;
 
 
-    void FocusGameNonBlocking();
+    void NO_SAVE__AddFirewallRule();
+    void NO_SAVE__RemoveFirewallRule();
+
+    void shutdown(HWND& window);
+
+    extern std::thread fps_process_thread;
 
 }
 
-enum VisibilityStatus {
+enum VisibilityStatus
+{
     VISIBLE,
     OVERLAY,
     HIDDEN
@@ -43,3 +60,9 @@ extern std::chrono::time_point<std::chrono::steady_clock> timerStart;
 
 
 extern VisibilityStatus visibilityStatus;
+
+
+extern ID3D11Device* g_device;
+extern ID3D11DeviceContext* g_device_context;
+extern IDXGISwapChain* g_swap_chain;
+extern ID3D11RenderTargetView* g_render_target_view;
