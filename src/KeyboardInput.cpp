@@ -3,6 +3,7 @@
 #include "imgui_styleGTA5/Include.hpp"
 #include "KeyboardInput.h"
 #include "globals.h"
+#include "ProcessHandler.h"
 
 
 std::unordered_map<int, bool> keyState;
@@ -17,7 +18,6 @@ const std::unordered_set<int> blockedKeys = {
 
 bool KeyboardInput::insertKeyPressed = false;
 bool KeyboardInput::wasInsertKeyDown = false;
-
 
 
 bool KeyboardInput::IsInGTA() {
@@ -108,7 +108,12 @@ void KeyboardInput::ProcessRawInput(LPARAM lParam) {
             io.AddKeyEvent(ImGuiKey_Enter, false);
         }
 
-
+        // 0x<something> keys website: https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
+        /*else if (key == 0x50 && keyDown) { // this doesnt work, raw input does not capture something that the game uses :(
+            io.AddKeyEvent(ImGuiKey_P, true);
+            io.AddKeyEvent(ImGuiKey_P, false);
+        }*/
+        
 
         keyState[key] = keyDown;
     }
@@ -119,7 +124,7 @@ void KeyboardInput::RegisterRawInput(HWND hwnd) {
     RAWINPUTDEVICE rid;
     rid.usUsagePage = 0x01;   // Generic Desktop Controls
     rid.usUsage = 0x06;       // Keyboard
-    rid.dwFlags = RIDEV_INPUTSINK;  // Receive input even when not focused
+    rid.dwFlags = RIDEV_INPUTSINK | RIDEV_NOLEGACY;  // Receive input even when not focused
     rid.hwndTarget = hwnd;
 
     if (!RegisterRawInputDevices(&rid, 1, sizeof(rid))) {

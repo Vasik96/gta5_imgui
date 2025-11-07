@@ -12,7 +12,6 @@
 #include <chrono>
 #include <thread>
 #include <shlobj.h>
-#include <atlbase.h>
 
 // imgui
 #include <imgui/imgui.h>
@@ -20,6 +19,10 @@
 #include "ProcessHandler.h"
 #include "Logging.h"
 #include "globals.h"
+#include "gui.h"
+
+
+#pragma comment(lib, "psapi.lib")
 
 
 typedef LONG(NTAPI* NtSuspendProcessFn)(IN HANDLE ProcessHandle);
@@ -27,27 +30,23 @@ typedef LONG(NTAPI* NtResumeProcessFn)(IN HANDLE ProcessHandle);
 
 
 
-namespace {
-    std::chrono::steady_clock::time_point sessionStart;
+std::chrono::steady_clock::time_point sessionStart;
 
-    void InitializeSession() {
-        static bool initialized = false;
-        if (!initialized) {
-            sessionStart = std::chrono::steady_clock::now();
-            initialized = true;
-        }
+void InitializeSession() {
+    static bool initialized = false;
+    if (!initialized) {
+        sessionStart = std::chrono::steady_clock::now();
+        initialized = true;
     }
 }
 
 
-
-
 bool ProcessHandler::TerminateGTA5() {
-
-    
+    g_alert_notification.CreateNotification("GTA 5 has been closed");
 
     HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    if (snapshot == INVALID_HANDLE_VALUE) return false;
+    if (snapshot == INVALID_HANDLE_VALUE)
+        return false;
 
     bool processFound = false;
     PROCESSENTRY32 processEntry;
@@ -158,7 +157,9 @@ void ProcessHandler::LaunchFiveM() {
 }
 
 
-void ProcessHandler::LaunchGTA5(bool AntiCheatEnabled, bool intoOnline) {
+void ProcessHandler::LaunchGTA5(bool AntiCheatEnabled) {
+    g_alert_notification.CreateNotification("Launching GTA 5...");
+
     // Define the path to Steam.exe (usually installed in the default directory)
     const std::wstring steamPath = L"C:\\Steam\\Steam.exe";
 
@@ -171,11 +172,7 @@ void ProcessHandler::LaunchGTA5(bool AntiCheatEnabled, bool intoOnline) {
         arguments += L" -nobattleye"; // Add the -nobattleye argument if AntiCheatEnabled is false
         Logging::Log("Launching GTA 5 with mods...", 1);
     }
-    if (intoOnline && AntiCheatEnabled) {
-        arguments += L" -StraightIntoFreemode"; //add argument to go into online without having to click the button
-        Logging::Log("Launching GTA Online...", 1);
-    }
-    if (!intoOnline && AntiCheatEnabled) {
+    if (AntiCheatEnabled) {
         Logging::Log("Launching GTA 5...", 1);
     }
 
@@ -253,6 +250,7 @@ void ProcessHandler::DesyncFromGTAOnline() {
                     NtResumeProcess(process);
 
                     Logging::Log("Desynced from GTA Online successfully", 1);
+                    g_alert_notification.CreateNotification("Desynced from session");
 
                     CloseHandle(process);
                 }
@@ -265,4 +263,119 @@ void ProcessHandler::DesyncFromGTAOnline() {
     }
 
     CloseHandle(snapshot);
+}
+
+DWORD ProcessHandler::FindProcessIdByWindow(const std::wstring& windowTitle) {
+    HWND hwnd = nullptr;
+
+    if (windowTitle == L"FiveM") {
+
+
+        struct EnumData {
+            std::wstring search;
+            HWND result = nullptr;
+        } data{ windowTitle };
+
+        EnumWindows([](HWND hWnd, LPARAM lParam) -> BOOL {
+            auto& data = *reinterpret_cast<EnumData*>(lParam);
+
+            wchar_t title[256];
+            if (GetWindowTextW(hWnd, title, sizeof(title) / sizeof(wchar_t))) {
+                std::wstring windowText(title);
+                if (windowText != data.search && windowText.find(data.search) != std::wstring::npos) {
+                    data.result = hWnd;
+                    return FALSE; // stop enumeration
+                }
+            }
+            return TRUE; // continue enumeration
+            }, reinterpret_cast<LPARAM>(&data));
+
+        hwnd = data.result;
+        if (!hwnd) return 0;
+    }
+    else {
+        hwnd = FindWindow(NULL, windowTitle.c_str());
+        if (!hwnd) return 0;
+    }
+
+    DWORD pid = 0;
+    GetWindowThreadProcessId(hwnd, &pid);
+    std::wcout << L"pid: " << pid << L"\n";
+    return pid;
+}
+
+DWORD ProcessHandler::GetPIDByProcessName(const wchar_t* processName)
+{
+    DWORD PID = 0;
+    HANDLE hProcessSnapshot;
+    PROCESSENTRY32 PE32;
+
+    // Take a snapshot of all processes in the system.
+    hProcessSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, NULL);
+    if (hProcessSnapshot == INVALID_HANDLE_VALUE)
+    {
+        std::cout << "<CreateToolhelp32Snapshot> Invalid handle";
+        return 0;
+    }
+
+    // Set the size of the structure before using it.
+    PE32.dwSize = sizeof(PROCESSENTRY32);
+
+    // Retrieves information about the first process and exit if unsuccessful
+    if (!Process32First(hProcessSnapshot, &PE32))
+    {
+        std::cout << "<Process32First> Error " << GetLastError() << '\n';
+        CloseHandle(hProcessSnapshot);
+        return 0;
+    }
+
+    // Now walk the snapshot of processes,
+    // and find the right process then get its PID
+    do
+    {
+        // Returns 0 value indicates that both wchar_t* string are equal
+        if (wcscmp(processName, PE32.szExeFile) == 0)
+        {
+            PID = PE32.th32ProcessID;
+            break;
+        }
+    } while (Process32Next(hProcessSnapshot, &PE32));
+
+    CloseHandle(hProcessSnapshot);
+    
+    std::cout << "Final PID: " + std::to_string(PID) << std::endl;
+
+    return PID;
+}
+
+std::string ProcessHandler::GetProcessNameFromPID(DWORD pid) {
+    //std::cout << "Passed PID: " + std::to_string(pid) << std::endl;
+
+    std::string ret;
+    HANDLE handle = OpenProcess(
+        PROCESS_QUERY_LIMITED_INFORMATION,
+        FALSE,
+        pid
+    );
+    if (handle)
+    {
+        DWORD buffSize = 1024;
+        CHAR buffer[1024];
+        if (QueryFullProcessImageNameA(handle, 0, buffer, &buffSize))
+        {
+            ret = buffer;
+
+            size_t pos = ret.find_last_of("\\/");
+            if (pos != std::string::npos) {
+                ret = ret.substr(pos + 1);
+            }
+        }
+        else
+        {
+            printf("Error GetModuleBaseNameA : %lu", GetLastError());
+        }
+        CloseHandle(handle);
+    }
+
+    return ret;
 }

@@ -19,6 +19,7 @@ const std::wstring globals::gtaProcess = L"GTA5_Enhanced.exe";
 std::chrono::time_point<std::chrono::steady_clock> globals::menu_uptime;
 
 bool globals::pForceHideWindow = true;
+bool globals::real_alt_f4_enabled = false;
 
 
 
@@ -27,6 +28,9 @@ int screenHeight = GetSystemMetrics(SM_CYSCREEN);
 
 namespace globals
 {
+    bool is_gta5_running = false;
+    bool is_fivem_running = false;
+
     namespace discord
     {
         const char* APPLICATION_ID = "1363270070301884536";
@@ -34,7 +38,7 @@ namespace globals
 
         void UpdatePresence()
         {
-            std::cout << "updating presence\n";
+            std::cout << "[discord] updating presence\n";
 
 
             DiscordRichPresence discordPresence;
@@ -54,7 +58,6 @@ namespace globals
             }
             else if (ProcessHandler::IsProcessRunning(L"FiveM.exe"))
             {
-                Logging::Log("fivem is running", 1);
                 stateText = "Playing FiveM";
             }
 

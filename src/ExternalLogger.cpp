@@ -36,7 +36,7 @@ namespace ExternalLogger
             return;
         }
 
-        send(clientSocket, message.c_str(), message.size(), 0);
+        send(clientSocket, message.c_str(), static_cast<int>(message.size()), 0);
         closesocket(clientSocket);
         WSACleanup();
     }

@@ -11,6 +11,8 @@
 extern int screenWidth;
 extern int screenHeight;
 
+inline HWND window = nullptr;
+
 namespace globals
 {
     extern std::chrono::time_point<std::chrono::steady_clock> menu_uptime;
@@ -44,6 +46,11 @@ namespace globals
 
     extern std::thread fps_process_thread;
 
+
+    extern bool is_gta5_running;
+    extern bool is_fivem_running;
+
+    extern bool real_alt_f4_enabled;
 }
 
 enum VisibilityStatus
@@ -56,6 +63,8 @@ enum VisibilityStatus
 
 extern std::chrono::time_point<std::chrono::steady_clock> timerStart;
 
+extern bool p_gta5NotRunning;
+extern bool p_fivemNotRunning;
 
 
 

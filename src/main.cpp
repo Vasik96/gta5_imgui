@@ -1,8 +1,6 @@
 #define IMGUI_DEFINE_MATH_OPERATORS
 //#define DISCORDPP_IMPLEMENTATION
 
-#include "NetworkInfo.h"
-
 #include <Windows.h>
 #include <dwmapi.h>
 #include <d3d11.h>
@@ -39,6 +37,10 @@
 #include "discord/include/discord_rpc.h"
 
 #include "FPSTracker.h"
+#include "System.h"
+
+
+extern void ShutdownHWiNFOMemory();
 
 
 //globals.h
@@ -52,23 +54,17 @@ bool globals::windowVisible = true;
 bool globals::running = true;
 bool globals::overlayToggled = true;
 
-std::string globals::lastTimerResult = "N/A";
+bool keybindThreadRunning = true;
+bool wasF4KeyDown = false;
+bool isTimerRunning = false;
+bool p_gta5NotRunning = false;
+bool p_fivemNotRunning = false;
 
+std::string globals::lastTimerResult = "N/A";
 
 std::chrono::time_point<std::chrono::steady_clock> timerStart;
 
-
-bool keybindThreadRunning = true;
-
-bool wasF4KeyDown = false;
-
-
-bool isTimerRunning = false;
-
-
-
 VisibilityStatus visibilityStatus = VISIBLE;
-
 
 void AllocateConsole()
 {
@@ -85,10 +81,21 @@ void AllocateConsole()
     std::ios::sync_with_stdio();
 }
 
+bool is_gta5_focused() {
+    const int length = 256;
+    wchar_t windowTitle[length] = { 0 };
+    HWND hwnd = GetForegroundWindow();
+    if (hwnd && GetWindowTextW(hwnd, windowTitle, length) > 0) {
+        // Direct compare without std::wstring
+        if (wcscmp(windowTitle, L"Grand Theft Auto V Enhanced") == 0 ||
+            wcscmp(windowTitle, L"Grand Theft Auto V") == 0) {
+            return true;
+        }
+    }
+    return false;
+}
 
-HWND window = nullptr;
-
-
+bool is_gta5_currently_focused = false;
 
 void HandleKeybinds(HWND window)
 {
@@ -158,7 +165,7 @@ void HandleKeybinds(HWND window)
     }
 
 
-    if (GetAsyncKeyState(VK_END) & 0x8000) {
+    if ((GetAsyncKeyState(VK_END) & 0x8000) && (GetAsyncKeyState(VK_LSHIFT) & 0x8000)) {
         globals::running = false;
     }
 
@@ -170,9 +177,14 @@ void HandleKeybinds(HWND window)
             GetWindowLongPtr(window, GWL_EXSTYLE) & ~WS_EX_TRANSPARENT);
 
     }
+
+    if (globals::real_alt_f4_enabled && is_gta5_currently_focused) {
+        if ((GetAsyncKeyState(VK_MENU) & 0x8000) && (GetAsyncKeyState(VK_F4) & 0x8000)) {
+            Logging::Log("terminating gta 5...", 1);
+            ProcessHandler::TerminateGTA5();
+        }
+    }
 }
-
-
 
 
 void KeybindHandlerThread(HWND window)
@@ -180,12 +192,16 @@ void KeybindHandlerThread(HWND window)
     while (keybindThreadRunning)
     {
         HandleKeybinds(window);
-        std::this_thread::yield();
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 }
 
-bool p_gta5NotRunning;
-bool p_fivemNotRunning;
+bool is_topmost(HWND hwnd)
+{
+    HWND hTopMost = GetTopWindow(nullptr);
+    return (hTopMost == hwnd);
+}
+
 
 void DataThread()
 {
@@ -196,7 +212,17 @@ void DataThread()
             p_gta5NotRunning = !ProcessHandler::IsProcessRunning(globals::gtaProcess.c_str());
             p_fivemNotRunning = !ProcessHandler::IsProcessRunning(L"FiveM.exe");
             //Logging::CheckExternalLogFile();
+
+            globals::is_gta5_running = !p_gta5NotRunning;
+            globals::is_fivem_running = !p_fivemNotRunning;
+
             std::this_thread::sleep_for(std::chrono::seconds(1));
+
+            is_gta5_currently_focused = is_gta5_focused();
+
+            SetWindowPos(window, HWND_TOPMOST, 0, 0, 0, 0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+
         }
     }).detach();
 }
@@ -206,20 +232,81 @@ void discordPresenceUpdater() {
     globals::discord::Initialize();
 
     while (globals::running) {
-        
-
         globals::discord::UpdatePresence();
 
         std::this_thread::sleep_for(std::chrono::seconds(5));
     }
 }
 
-
 std::thread globals::fps_process_thread;
+
+
+static constexpr int TARGET_OVERLAY_FPS = 150;
+
+void GuiRenderThread() {
+    LARGE_INTEGER frequency;
+    QueryPerformanceFrequency(&frequency);
+
+    const double target_frame_time = 1.0 / TARGET_OVERLAY_FPS;
+
+    while (globals::running) {
+        LARGE_INTEGER frame_start;
+        QueryPerformanceCounter(&frame_start);
+
+        if (globals::windowVisible &&
+            (visibilityStatus != HIDDEN || (!p_gta5NotRunning || !p_fivemNotRunning)))
+        {
+            RenderImGui(p_gta5NotRunning, p_fivemNotRunning, window);
+
+            static constexpr float color[4] = { 0.f, 0.f, 0.f, 0.f };
+            g_device_context->OMSetRenderTargets(1U, &g_render_target_view, nullptr);
+            g_device_context->ClearRenderTargetView(g_render_target_view, color);
+            ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+            g_swap_chain->Present(0U, 0U);
+        }
+
+        safety_checks::check_dx_validity();
+
+        // Measure frame time
+        LARGE_INTEGER frame_end;
+        QueryPerformanceCounter(&frame_end);
+        double elapsed = static_cast<double>(frame_end.QuadPart - frame_start.QuadPart) / frequency.QuadPart;
+
+        double remaining = target_frame_time - elapsed;
+        if (remaining > 0.0) {
+            // Sleep for most of the remaining time, leave a tiny margin for precision
+            if (remaining > 0.002)  // >2 ms
+                std::this_thread::sleep_for(std::chrono::duration<double>(remaining - 0.001));
+
+            // Final fine-tune busy wait for the last ~1 ms
+            do {
+                QueryPerformanceCounter(&frame_end);
+                elapsed = static_cast<double>(frame_end.QuadPart - frame_start.QuadPart) / frequency.QuadPart;
+            } while (elapsed < target_frame_time);
+        }
+    }
+}
+
+
+
+void SetCWDToExeFolder() {
+    wchar_t exePath[MAX_PATH];
+    GetModuleFileNameW(NULL, exePath, MAX_PATH);
+
+    std::wstring pathStr(exePath);
+    size_t lastSlash = pathStr.find_last_of(L"\\/");
+    if (lastSlash != std::wstring::npos) {
+        std::wstring exeFolder = pathStr.substr(0, lastSlash);
+        SetCurrentDirectoryW(exeFolder.c_str());
+    }
+}
 
 INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show)
 { 
+    timeBeginPeriod(1);
     //AllocateConsole();
+
+    SetCWDToExeFolder();
 
     Logging::CleanupTemporaryLogs();
 
@@ -235,18 +322,15 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show)
         CleanupWindow(window);
         return 1;
     }
-
-
+    else {
+        QueryTotalVRAM(g_device);
+    }
 
     InitializeImGui(window, g_device, g_device_context);
     DataThread();
     
     std::thread insertKeyThread(KeybindHandlerThread, window);
     insertKeyThread.detach();
-
-    
-    std::thread captureThread(NetworkInfo::startPacketCapture);
-    captureThread.detach();
 
     ShowCursor(FALSE);
 
@@ -260,29 +344,28 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show)
     StartEtwSession();
     globals::fps_process_thread = std::thread(OpenAndProcess);
     globals::fps_process_thread.detach();
-    StartFpsCalculation();
+    StartPerformanceCalculations();
+
+
+    std::thread gui_renderer_thread(GuiRenderThread);
+    gui_renderer_thread.detach();
+
+    g_alert_notification.CreateNotification("Overlay initialized");
 
     while (globals::running)
     {
-
         MSG msg;
 
-        while (PeekMessage(&msg, nullptr, 0U, 0U, PM_REMOVE))
+        if (!PeekMessage(&msg, nullptr, 0U, 0U, PM_REMOVE))
         {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
-
-            if (msg.message == WM_QUIT)
-            {
-                globals::running = false;
-                globals::windowVisible = false;
-            }
+            WaitMessage();
+            continue;
         }
 
-        if (!globals::running)
-        {
-            break;
-        }
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+
+
 
         if (!globals::pForceHideWindow)
         {
@@ -300,46 +383,39 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show)
             }
         }
 
-
         if (!p_gta5NotRunning || !p_fivemNotRunning)
         {
             ProcessHandler::GetCurrentSession();
         }
+        
+        //revert resolution after GTA 5 is closed
+        if (!globals::is_gta5_running && !globals::is_fivem_running && has_resolution_changed_for_ssaa) {
+            DEVMODE devMode = {};
+            devMode.dmSize = sizeof(DEVMODE);
+            if (EnumDisplaySettings(NULL, ENUM_REGISTRY_SETTINGS, &devMode)) {
+                int width = devMode.dmPelsWidth;
+                int height = devMode.dmPelsHeight;
 
-        if (!globals::windowVisible)
-        {
-            continue;
-        }
+                System::ChangeResolution(width, height);
+                Logging::Log("Successfully reset resolution to the native value", 1);
+            }
+            else {
+                System::ChangeResolution(1920, 1080);
+                Logging::Log("Fallback to hardcoded resolution reset", 2);
+            }
 
-
-
-        if (visibilityStatus != HIDDEN || !globals::windowVisible && (!p_gta5NotRunning || !p_fivemNotRunning))
-        {
-            RenderImGui(
-                p_gta5NotRunning,
-                p_fivemNotRunning,
-                window
-            );
-
-
-
-            constexpr float color[4] = { 0.f, 0.f, 0.f, 0.f };
-            g_device_context->OMSetRenderTargets(1U, &g_render_target_view, nullptr);
-            g_device_context->ClearRenderTargetView(g_render_target_view, color);
-            ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData()); //this has to be here, otherwise the window will not appear
-
-            g_swap_chain->Present(1U, 0U);
+            has_resolution_changed_for_ssaa = false;
         }
 
         std::this_thread::yield();
+        //std::this_thread::sleep_for(std::chrono::milliseconds(16));
     }
-    StopEtwSession();
-
-    Discord_Shutdown();
+    timeEndPeriod(1);
 
     globals::NO_SAVE__RemoveFirewallRule();
 
-    
+    StopEtwSession();
+    Discord_Shutdown();
 
     keybindThreadRunning = false;
     if (insertKeyThread.joinable())
@@ -347,17 +423,11 @@ INT APIENTRY WinMain(HINSTANCE instance, HINSTANCE, PSTR, INT cmd_show)
         insertKeyThread.join();
     }
 
-    
-    if (captureThread.joinable())
-    {
-        captureThread.join();
-    }
-
-    
     //shutdown program
     globals::shutdown(window);
-
     CleanupDirectX(g_device, g_device_context, g_swap_chain, g_render_target_view);
+
+    ShutdownHWiNFOMemory();
 
     return 0;
 }

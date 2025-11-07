@@ -1,0 +1,10 @@
+{
+    "externalLogsWindowActive": false,
+    "globals::overlayToggled": true,
+    "noActivateFlag": true,
+    "showGTA5styleWindow": false,
+    "showGta5MapWindow": false,
+    "showImGuiDebugWindow": false,
+    "showMetricsOverlay": true,
+    "showOtherWindow": true
+}

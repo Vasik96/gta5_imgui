@@ -1,8 +1,5 @@
 #define IMGUI_DEFINE_MATH_OPERATORS
 #define STB_IMAGE_IMPLEMENTATION
-
-#include "NetworkInfo.h"
-
 #include <iostream>
 #include <thread>
 #include <string>
@@ -40,6 +37,10 @@
 #include "IconsFontAwesome6.h"
 
 #include "FPSTracker.h"
+#include "DXHandler.h"
+#include "GTAOnline.h"
+
+#include "hwisenssm2.h"
 
 #pragma comment(lib, "Ws2_32.lib")
 #pragma comment(lib, "urlmon.lib")
@@ -47,8 +48,11 @@
 
 using Microsoft::WRL::ComPtr;
 
+AlertNotification g_alert_notification;
+
 static C_ImMMenu Menu;
 
+static gui::GuiTabs current_tab = gui::GuiTabs::TAB_MAIN;
 
 std::string titleText = "Home";
 
@@ -80,11 +84,20 @@ bool externalLogsWindowActive = false;
 bool showOtherWindow = true;
 bool showGTA5styleWindow = false;
 bool isDesyncInProgress = false;
+bool has_resolution_changed_for_ssaa = false;
 
+static bool show_processes_window = false;
+static bool showMetricsOverlay = false;
 static bool showGta5MapWindow = false;
 
-ImVec4 subTitleColor(0.0f, 0.5f, 1.0f, 1.0f);
-ImVec4 subTitleColor_2(0.14f, 0.87f, 0.42f, 1.f);
+//for process list:
+DWORD aProcesses[1024];
+DWORD cbNeeded;
+static std::vector<std::string> process_names_list;
+static std::vector<const char*> items;
+
+ImVec4 title_color(0.0f, 0.5f, 1.0f, 1.0f);
+ImVec4 subtitle_color(0.14f, 0.87f, 0.42f, 1.f);
 
 
 ImVec4 playerColor = ImVec4(0.0f, 1.0f, 0.0f, 1.0f); // Green for player
@@ -100,8 +113,6 @@ static int currentPowerOption = 0;
 static int currentResolution = 0;
 std::chrono::steady_clock::time_point startTime;
 
-
-
 ID3D11ShaderResourceView* lsMapTexture = nullptr;
 ID3D11ShaderResourceView* cayoMapTexture = nullptr;
 
@@ -109,6 +120,10 @@ static float progress = 0.0f;
 static float progress_dir = 1.0f;
 static float progress_duration = 10.0f;
 static float progress_step = 0.0f;
+
+
+
+extern double g_totalVRAMGB;
 
 // variables for global settings
 nlohmann::json global_settings;
@@ -131,6 +146,8 @@ void SaveSettings(const nlohmann::json& settings, const std::string& filename)
     j["showImGuiDebugWindow"] = showImGuiDebugWindow;
     j["showOtherWindow"] = showOtherWindow;
     j["globals::overlayToggled"] = globals::overlayToggled;
+    j["showMetricsOverlay"] = showMetricsOverlay;
+    j["globals::real_alt_f4_enabled"] = globals::real_alt_f4_enabled;
 
 
     // Write to file
@@ -148,6 +165,8 @@ void ResetSettings(nlohmann::json& settings, const std::string& filename)
     settings["showImGuiDebugWindow"] = false;
     settings["showOtherWindow"] = true;
     settings["globals::overlayToggled"] = true;
+    settings["showMetricsOverlay"] = false;
+    settings["globals::real_alt_f4_enabled"] = false;
 
     // Manually update the actual values as well
     showGTA5styleWindow = false;
@@ -157,6 +176,8 @@ void ResetSettings(nlohmann::json& settings, const std::string& filename)
     showImGuiDebugWindow = false;
     showOtherWindow = true;
     globals::overlayToggled = true;
+    showMetricsOverlay = false;
+    globals::real_alt_f4_enabled = false;
 
     // Save the default settings to file
     SaveSettings(settings, filename);
@@ -184,7 +205,36 @@ void LoadSettings(nlohmann::json& settings, const std::string& filename)
             // Load the entire settings JSON into the settings object
             settings = j;
 
-            // You can also access individual values like this if needed:
+            // Check if each key exists, and if not, add it with a default value
+            if (!settings.contains("showGTA5styleWindow")) {
+                settings["showGTA5styleWindow"] = false;
+            }
+            if (!settings.contains("showGta5MapWindow")) {
+                settings["showGta5MapWindow"] = false;
+            }
+            if (!settings.contains("externalLogsWindowActive")) {
+                settings["externalLogsWindowActive"] = false;
+            }
+            if (!settings.contains("noActivateFlag")) {
+                settings["noActivateFlag"] = true;
+            }
+            if (!settings.contains("showImGuiDebugWindow")) {
+                settings["showImGuiDebugWindow"] = false;
+            }
+            if (!settings.contains("showOtherWindow")) {
+                settings["showOtherWindow"] = true;
+            }
+            if (!settings.contains("globals::overlayToggled")) {
+                settings["globals::overlayToggled"] = true;
+            }
+            if (!settings.contains("showMetricsOverlay")) {
+                settings["showMetricsOverlay"] = false;
+            }
+            if (!settings.contains("globals::real_alt_f4_enabled")) {
+                settings["globals::real_alt_f4_enabled"] = false;
+            }
+
+            // Manually assign to variables
             showGTA5styleWindow = settings["showGTA5styleWindow"].get<bool>();
             showGta5MapWindow = settings["showGta5MapWindow"].get<bool>();
             externalLogsWindowActive = settings["externalLogsWindowActive"].get<bool>();
@@ -192,7 +242,8 @@ void LoadSettings(nlohmann::json& settings, const std::string& filename)
             showImGuiDebugWindow = settings["showImGuiDebugWindow"].get<bool>();
             showOtherWindow = settings["showOtherWindow"].get<bool>();
             globals::overlayToggled = settings["globals::overlayToggled"].get<bool>();
-
+            showMetricsOverlay = settings["showMetricsOverlay"].get<bool>();
+            globals::real_alt_f4_enabled = settings["globals::real_alt_f4_enabled"].get<bool>();
         }
         else
         {
@@ -223,6 +274,231 @@ void LoadSettings(nlohmann::json& settings, const std::string& filename)
 
 
 
+static HANDLE hMapFile = nullptr;
+static PHWiNFO_SENSORS_SHARED_MEM2 pInfo = nullptr;
+
+bool InitHWiNFOMemory()
+{
+    hMapFile = OpenFileMapping(FILE_MAP_READ, FALSE, L"Global\\HWiNFO_SENS_SM2");
+    if (!hMapFile) {
+        printf("Failed to open HWiNFO shared memory. Is HWiNFO running with Shared Memory enabled?\n");
+        return false;
+    }
+    printf("Opened HWiNFO shared memory mapping successfully.\n");
+
+    pInfo = (PHWiNFO_SENSORS_SHARED_MEM2)MapViewOfFile(hMapFile, FILE_MAP_READ, 0, 0, 0);
+    if (!pInfo) {
+        printf("Failed to map view of HWiNFO shared memory.\n");
+        CloseHandle(hMapFile);
+        hMapFile = nullptr;
+        return false;
+    }
+    printf("Mapped view of HWiNFO shared memory successfully.\n");
+
+
+
+    const DWORD HWiNFOSignature = 0x53695748; // value printed by your program
+    if (pInfo->dwSignature != HWiNFOSignature) {
+        printf("HWiNFO shared memory signature mismatch. Signature = 0x%08X\n", pInfo->dwSignature);
+        UnmapViewOfFile(pInfo);
+        CloseHandle(hMapFile);
+        pInfo = nullptr;
+        hMapFile = nullptr;
+        return false;
+    }
+
+    printf("HWiNFO shared memory initialized and verified successfully.\n");
+    return true;
+}
+
+
+
+void ShutdownHWiNFOMemory()
+{
+    if (pInfo) UnmapViewOfFile(pInfo);
+    if (hMapFile) CloseHandle(hMapFile);
+    pInfo = nullptr;
+    hMapFile = nullptr;
+}
+
+void DrawVRAMUsage()
+{
+    if (!pInfo) {
+        ImGui::Text("Other: [HWiNFO not running]");
+        return;
+    }
+
+    auto* sensorBase = (BYTE*)pInfo + pInfo->dwOffsetOfSensorSection;
+    auto* readingBase = (BYTE*)pInfo + pInfo->dwOffsetOfReadingSection;
+
+    PHWiNFO_SENSORS_SENSOR_ELEMENT gpuSensor = nullptr;
+
+    for (DWORD i = 0; i < pInfo->dwNumSensorElements; i++)
+    {
+        auto* sensor = (PHWiNFO_SENSORS_SENSOR_ELEMENT)(sensorBase + i * pInfo->dwSizeOfSensorElement);
+        // look for GPU sensors; you can match by utfSensorNameUser or szSensorNameUser
+        std::string name(reinterpret_cast<char*>(sensor->utfSensorNameUser));
+        if (name.find("GPU") != std::string::npos)
+        {
+            gpuSensor = sensor;
+            break; // first GPU
+        }
+    }
+
+    if (!gpuSensor)
+    {
+        ImGui::Text("GPU: N/A");
+        return;
+    }
+
+    double vramUsagePercent = -1.0;
+
+    for (DWORD j = 0; j < pInfo->dwNumReadingElements; j++)
+    {
+        auto* reading = (PHWiNFO_SENSORS_READING_ELEMENT)(readingBase + j * pInfo->dwSizeOfReadingElement);
+
+        if (reading->dwSensorIndex == (DWORD)(gpuSensor - (PHWiNFO_SENSORS_SENSOR_ELEMENT)sensorBase))
+        {
+            std::string label(reinterpret_cast<char*>(reading->szLabelOrig));
+            if (label.find("GPU Memory Controller Utilization") != std::string::npos)
+            {
+                vramUsagePercent = reading->Value;
+                break;
+            }
+        }
+    }
+
+
+    if (vramUsagePercent >= 0)
+    {
+        double vramUsedGB = (vramUsagePercent / 100.0) * g_totalVRAMGB;
+        ImGui::Text("VRAM: %.1f/%.1f GB", vramUsedGB, g_totalVRAMGB);
+    }
+    else
+    {
+        ImGui::Text("VRAM: N/A");
+    }
+}
+
+
+void DrawGPUUsage()
+{
+    if (!pInfo) {
+        return;
+    }
+
+    auto* sensorBase = (BYTE*)pInfo + pInfo->dwOffsetOfSensorSection;
+    auto* readingBase = (BYTE*)pInfo + pInfo->dwOffsetOfReadingSection;
+
+    PHWiNFO_SENSORS_SENSOR_ELEMENT gpuSensor = nullptr;
+
+    // Find first GPU sensor
+    for (DWORD i = 0; i < pInfo->dwNumSensorElements; i++)
+    {
+        auto* sensor = (PHWiNFO_SENSORS_SENSOR_ELEMENT)(sensorBase + i * pInfo->dwSizeOfSensorElement);
+        std::string name(reinterpret_cast<char*>(sensor->utfSensorNameUser));
+        if (name.find("GPU") != std::string::npos)
+        {
+            gpuSensor = sensor;
+            break; // first GPU
+        }
+    }
+
+    if (!gpuSensor)
+    {
+        ImGui::Text("GPU: N/A");
+        return;
+    }
+
+    double gpuUsagePercent = -1.0;
+
+    for (DWORD j = 0; j < pInfo->dwNumReadingElements; j++)
+    {
+        auto* reading = (PHWiNFO_SENSORS_READING_ELEMENT)(readingBase + j * pInfo->dwSizeOfReadingElement);
+
+        if (reading->dwSensorIndex == (DWORD)(gpuSensor - (PHWiNFO_SENSORS_SENSOR_ELEMENT)sensorBase))
+        {
+            if (reading->tReading == SENSOR_TYPE_USAGE)
+            {
+                std::string label(reinterpret_cast<char*>(reading->szLabelOrig)); // English string
+                if (label.find("GPU Utilization") != std::string::npos)
+                {
+                    gpuUsagePercent = reading->Value;
+                    break;
+                }
+            }
+        }
+    }
+
+
+    if (gpuUsagePercent >= 0)
+        ImGui::Text("GPU: %d%%", (int)gpuUsagePercent);
+    else
+        ImGui::Text("GPU: N/A");
+}
+
+void DrawCPUTemperature()
+{
+    if (!pInfo)
+        return;
+
+    auto* sensorBase = (BYTE*)pInfo + pInfo->dwOffsetOfSensorSection;
+    auto* readingBase = (BYTE*)pInfo + pInfo->dwOffsetOfReadingSection;
+
+    double cpuTemp = -1.0;
+
+    for (DWORD j = 0; j < pInfo->dwNumReadingElements; j++)
+    {
+        auto* reading = (PHWiNFO_SENSORS_READING_ELEMENT)(readingBase + j * pInfo->dwSizeOfReadingElement);
+
+        if (reading->tReading == SENSOR_TYPE_TEMP)
+        {
+            std::string label(reinterpret_cast<char*>(reading->szLabelOrig));
+
+            if (label.find("CPU") != std::string::npos)
+            {
+                cpuTemp = reading->Value;
+                break;
+            }
+        }
+    }
+
+    if (cpuTemp >= 0.0)
+    {
+        ImGui::Text("CPU Temp: %d *C", static_cast<int>(cpuTemp));
+    }
+    else
+    {
+        ImGui::Text("CPU Temp: N/A");
+    }
+}
+
+
+
+
+void UpdateProcessList() {
+    std::memset(aProcesses, 0, sizeof(aProcesses)); // clear array
+    process_names_list.clear();
+    items.clear();
+    
+    
+    EnumProcesses(aProcesses, sizeof(aProcesses), &cbNeeded);
+
+    DWORD count = cbNeeded / sizeof(DWORD); // PID = 4 bytes (DWORD), cbNeeded is bytes, not a count
+                                            // for example: 250 processes running, each PID is DWORD which is 4 bytes
+                                            // therefore we divide by sizeof(DWORD) to get the process count.
+
+    for (DWORD i = 0; i < count; ++i) {
+        std::string process_name = ProcessHandler::GetProcessNameFromPID(aProcesses[i]);
+
+        if (!process_name.empty()) {
+            process_names_list.push_back(process_name);
+            std::cout << process_name << std::endl;
+        }
+    }
+
+    std::sort(process_names_list.begin(), process_names_list.end());
+}
 
 
 void LaunchLS()
@@ -239,6 +515,21 @@ void LaunchLS()
     }).detach();
 }
 
+/*
+void LaunchModRemoveTool()
+{
+
+    std::thread([]()
+        {
+            SHELLEXECUTEINFO sei = { sizeof(sei) };
+            sei.lpVerb = L"runas";
+            sei.lpFile = L"C:\\Users\\leman\\Desktop\\Soubory\\gta5_mod_remove_tool.exe";
+            sei.nShow = SW_SHOWNORMAL;
+            sei.fMask = SEE_MASK_NOCLOSEPROCESS;
+            ShellExecuteEx(&sei);
+        }).detach();
+}
+*/
 
 
 
@@ -409,6 +700,10 @@ namespace gui
             prefix = "[error]  ";
             color = ImVec4(1.0f, 0.0f, 0.0f, 1.0f); // Red
             break;
+        case 4:
+            prefix = "[external]  ";
+            color = ImVec4(1.0f, 1.0f, 1.0f, 1.0f); // white
+            break;
         default: // Default to Info
             prefix = "[info]  ";
             color = ImVec4(0.0f, 1.0f, 1.0f, 1.0f); // Aqua
@@ -496,6 +791,8 @@ static const ImWchar icons_ranges[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
 
 void InitializeImGui(HWND window, ID3D11Device* device, ID3D11DeviceContext* device_context)
 {
+    InitHWiNFOMemory();
+
     Logging::Log("Initializing settings..", 1);
     LoadSettings(global_settings, config_filename);
 
@@ -546,6 +843,7 @@ void InitializeImGui(HWND window, ID3D11Device* device, ID3D11DeviceContext* dev
     ImGui::StyleColorsClassic();
     ImGuiStyle* style = &ImGui::GetStyle();
     ImVec4* colors = style->Colors;
+
 
     //ImGui::GetStyle().Colors[ImGuiCol_WindowBg].w = 0.95f;
     colors[ImGuiCol_Tab] = ImLerp(colors[ImGuiCol_Header], colors[ImGuiCol_TitleBgActive], 0.30f);
@@ -659,777 +957,947 @@ void EnableShutdownPrivilege()
 }
 
 
+void MoveFiles(const std::vector<std::filesystem::path>& files, const std::filesystem::path& targetDir) {
+    std::filesystem::create_directories(targetDir);
+    for (const auto& file : files) {
+        try {
+            std::filesystem::rename(file, targetDir / file.filename());
+        }
+        catch (...) {
+            Logging::Log("error while moving file", 3);
+        }
+    }
+}
+
+namespace MainWindow
+{
+    /***************************************************************/
+    /**************************  SECTIONS  *************************/
+    /***************************************************************/
+
+    /*********  MAIN  **********/
+    void RenderMainTab()
+    {
+        ImGuiIO& io = ImGui::GetIO();
+
+        ImGui::SeparatorText(ICON_FA_HAMMER " General");
+
+        ImGui::Text("Overlay FPS: %.0f", io.Framerate);
+
+
+        if (!p_gta5NotRunning || !p_fivemNotRunning)
+        {
+            ImGui::Text("Current session: %s", ProcessHandler::GetCurrentSession().c_str());
+            ImGui::Text("Current patch: %s", gameVersionStr.c_str());
+
+        }
+        else
+        {
+            ProcessHandler::ResetSession();
+            //ImGui::Text("No active GTA 5 or FiveM session");
+        }
+
+        ImGui::Text("Last Timer Result: %s", globals::lastTimerResult.c_str());
+
+        if (p_gta5NotRunning && p_fivemNotRunning)
+        {
+
+            ImGui::SetNextItemWidth(128.0f);
+
+            // Create the combo box with three selections
+            static const char* comboItems[] = { "GTA 5", "GTA 5 (Modded)", "FiveM" };
+            if (ImGui::BeginCombo("##GameCombo", comboItems[currentSelection]))
+            {
+                for (int i = 0; i < IM_ARRAYSIZE(comboItems); i++)
+                {
+                    bool isSelected = (currentSelection == i);
+                    if (ImGui::Selectable(comboItems[i], isSelected))
+                    {
+                        currentSelection = i;  // Update the current selection based on user input
+                    }
+                    if (isSelected)
+                    {
+                        ImGui::SetItemDefaultFocus();  // Keep the default selection focused
+                    }
+                }
+                ImGui::EndCombo();
+            }
+
+
+            if (ImGui::Button(ICON_FA_CHECK " Launch##Main"))
+            {
+                switch (currentSelection) //online launch removed as of enhanced
+                {
+                case 0:
+                    // Launch GTA 5 normally
+                    ProcessHandler::LaunchGTA5(true);
+                    break;
+                case 1:
+                    // Launch GTA 5 without anticheat (used for modded game)
+                    ProcessHandler::LaunchGTA5(false);
+                    break;
+                case 2:
+                    // Launch FiveM
+                    ProcessHandler::LaunchFiveM();
+                    break;
+                default:
+                    ImGui::Text("[Error] Invalid selection");
+                    break;
+                }
+            }
+
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::SetTooltip("Launches the selected game.");
+            }
+
+
+
+            ImGui::SameLine();
+        }
+
+
+        if (globals::is_gta5_running || globals::is_fivem_running)
+        {
+            if (ImGui::Button(ICON_FA_XMARK " Exit Game"))
+            {
+                gta5NotRunning = !ProcessHandler::TerminateGTA5();
+                fivemNotRunning = !ProcessHandler::TerminateGTA5();
+            }
+
+
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::SetTooltip("Terminates the GTA 5 or FiveM process.");
+            }
+
+            ImGui::SameLine();
+            if (ImGui::Button(ICON_FA_DESKTOP " SSAA")) {
+                if (!has_resolution_changed_for_ssaa) {
+                    has_resolution_changed_for_ssaa = true;
+                    System::ChangeResolution(2560, 1440); //2880x1620, 2560x1440
+                }
+                else { // revert resolution
+                    has_resolution_changed_for_ssaa = false;
+
+                    DEVMODE devMode = {};
+                    devMode.dmSize = sizeof(DEVMODE);
+                    if (EnumDisplaySettings(NULL, ENUM_REGISTRY_SETTINGS, &devMode)) {
+                        int width = devMode.dmPelsWidth;
+                        int height = devMode.dmPelsHeight;
+
+                        System::ChangeResolution(width, height);
+                        Logging::Log("Successfully reset resolution to the native value", 1);
+                    }
+                    else {
+                        System::ChangeResolution(1920, 1080);
+                        Logging::Log("Fallback to hardcoded resolution reset", 2);
+                    }
+
+                }
+
+            }
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::SetTooltip("Applies supersampling by increasing resolution. (toggle)\n - This assumes you have DSR or some custom resolution added, otherwise do not apply this, doing so might result in an error or broken resolution");
+            }
+
+            ImGui::SameLine();
+        }
+
+
+        if (ImGui::Button(ICON_FA_EXPAND " Launch LS"))
+        {
+            LaunchLS();
+        }
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("Launches Lossless Scaling");
+        }
+
+        /*
+        if (!globals::is_gta5_running && !globals::is_fivem_running)
+        {
+            ImGui::SameLine();
+
+            if (ImGui::Button(ICON_FA_GAMEPAD " Manage Mods"))
+            {
+                LaunchModRemoveTool();
+            }
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::SetTooltip("Launches GTA 5 Mod Remove Tool");
+            }
+        }*/
+
+
+        if (gta5NotRunning)
+        {
+            ImGui::Text("GTA5.exe isn't running.");
+        }
+        else if (fivemNotRunning)
+        {
+            ImGui::Text("FiveM.exe isn't running.");
+        }
+
+
+
+
+
+        ImGui::SeparatorText(ICON_FA_GEAR " Settings");
+
+        ImVec2 childSize = ImVec2(0, ImGui::GetContentRegionAvail().y * 0.95f);
+        if (ImGui::BeginChild("SettingsChild", childSize, true))
+        {
+            if (ImGui::CollapsingHeader(ICON_FA_LIST_CHECK " Options", ImGuiTreeNodeFlags_DefaultOpen))
+            {
+                ImGui::Checkbox("GTA 5 Menu", &showGTA5styleWindow);
+                if (ImGui::IsItemHovered())
+                {
+                    ImGui::SetTooltip("Toggles the GTA 5 interaction menu style window.");
+                }
+
+                ImGui::Checkbox("GTA 5 Map", &showGta5MapWindow);
+                if (ImGui::IsItemHovered())
+                {
+                    ImGui::SetTooltip("Toggles the map window.");
+                }
+
+                ImGui::Checkbox("Overlay", &globals::overlayToggled);
+                if (ImGui::IsItemHovered())
+                {
+                    ImGui::SetTooltip("If disabled, overlay will not show.");
+                }
+
+                ImGui::Checkbox("Performance Overlay", &showMetricsOverlay);
+                if (ImGui::IsItemHovered())
+                {
+                    ImGui::SetTooltip("Overlay needs to be enabled, this shows the game framerate and frametime.");
+                }
+
+
+                ImGui::Checkbox("BG Interaction", &noActivateFlag);
+                if (ImGui::IsItemHovered())
+                {
+                    ImGui::SetTooltip("If enabled, the window will behave more like an overlay. (Reopen the menu to apply changes) [WS_EX_NOACTIVATE]");
+                }
+
+
+                ImGui::Checkbox("Demo Window", &showImGuiDebugWindow);
+                if (ImGui::IsItemHovered())
+                {
+                    ImGui::SetTooltip("Toggles the ImGui demo window.");
+                }
+
+                if (ImGui::Checkbox("This Window", &showOtherWindow))
+                {
+                    showGTA5styleWindow = true;
+                }
+                if (ImGui::IsItemHovered())
+                {
+                    ImGui::SetTooltip("Hides this window, and shows the GTA 5 style window.");
+                }
+
+                ImGui::Checkbox("Real ALT+F4", &globals::real_alt_f4_enabled);
+                if (ImGui::IsItemHovered())
+                {
+                    ImGui::SetTooltip("When enabled, ALT+F4 will instantly close GTA 5, without confirmation.");
+                }
+            }
+
+            if (ImGui::CollapsingHeader(ICON_FA_FOLDER " Save & Load"))
+            {
+                if (ImGui::Button(ICON_FA_FLOPPY_DISK " Save")) { SaveSettings(global_settings, config_filename); }
+                if (ImGui::Button(ICON_FA_FOLDER_OPEN " Load")) { LoadSettings(global_settings, config_filename); }
+                if (ImGui::Button(ICON_FA_ROTATE_LEFT " Reset")) { ResetSettings(global_settings, config_filename); }
+            }
+        }
+        ImGui::EndChild();
+
+    }
+
+    /*******  UTILITY  ********/
+    void RenderUtilityTab()
+    {
+        ImGui::SeparatorText(ICON_FA_DOLLAR_SIGN " Money Calculations");
+        ImGui::Spacing();
+        ImGui::BeginChild("moneyTextFields", ImVec2(128, 105), true);
+        ImGui::PushItemWidth(112.0f);
+        ImGui::TextColored(title_color, "Input details...");
+
+        // GUI input and calculation handling
+        if (ImGui::InputTextWithHint("##currentMoney", "Current money", currentPlayerMoneyBuffer, sizeof(currentPlayerMoneyBuffer), ImGuiInputTextFlags_CharsDecimal))
+        {
+            int currentPlayerMoney = Calculations::ParseInteger(currentPlayerMoneyBuffer);
+            if (currentPlayerMoney == -1)
+            {
+                currentPlayerMoneyBuffer[0] = '\0'; // Make the text field blank
+            }
+            else
+            {
+                snprintf(currentPlayerMoneyBuffer, sizeof(currentPlayerMoneyBuffer), "%d", currentPlayerMoney);
+            }
+        }
+
+        // Money to receive input
+        if (ImGui::InputTextWithHint("##moneyToReceive", "Received money", moneyToReceiveBuffer, sizeof(moneyToReceiveBuffer), ImGuiInputTextFlags_CharsDecimal))
+        {
+            int moneyToReceive = Calculations::ParseInteger(moneyToReceiveBuffer);
+            if (moneyToReceive == -1)
+            {
+                moneyToReceiveBuffer[0] = '\0'; // Make the text field blank
+            }
+            else
+            {
+                snprintf(moneyToReceiveBuffer, sizeof(moneyToReceiveBuffer), "%d", moneyToReceive);
+            }
+        }
+
+        // CEO bonus input
+        if (ImGui::InputTextWithHint("##ceoBonus", "CEO's in lobby", ceoBonusBuffer, sizeof(ceoBonusBuffer), ImGuiInputTextFlags_CharsDecimal))
+        {
+            int ceoBonus = Calculations::ParseInteger(ceoBonusBuffer);
+            if (ceoBonus == -1)
+            {
+                ceoBonusBuffer[0] = '\0'; // Make the text field blank
+            }
+            else
+            {
+                snprintf(ceoBonusBuffer, sizeof(ceoBonusBuffer), "%d", ceoBonus);
+            }
+        }
+
+        ImGui::PopItemWidth();
+        ImGui::EndChild();
+        ImGui::SameLine();
+        ImGui::BeginGroup();
+
+        //convert to int
+        int currentPlayerMoney = Calculations::ParseInteger(currentPlayerMoneyBuffer);
+        int moneyToReceive = Calculations::ParseInteger(moneyToReceiveBuffer);
+        int ceoBonus = Calculations::ParseInteger(ceoBonusBuffer);
+
+        if (ImGui::Button(ICON_FA_CALCULATOR " Calculate Total Money"))
+        {
+            std::string result = Calculations::CalculateTotalMoney(currentPlayerMoney, moneyToReceive, ceoBonus);
+            strncpy_s(totalMoneyText, sizeof(totalMoneyText), result.c_str(), sizeof(totalMoneyText) - 1);
+        }
+        ImGui::Text("Total Money: %s", totalMoneyText); //calculated money text
+
+        ImGui::EndGroup();
+
+
+        ImGui::SeparatorText(ICON_FA_GAUGE_HIGH " Performance Monitoring");
+
+        std::string name; // keep this alive
+        const char* process_name = "<not active>";
+
+        if (g_tracked_pid != 0) {
+            name = ProcessHandler::GetProcessNameFromPID(g_tracked_pid);
+            if (!name.empty()) {
+                process_name = name.c_str(); // safe, 'name' is alive
+            }
+        }
+
+        ImGui::Text("Current process: %s", process_name);
+
+
+
+        
+        if (ImGui::Button("Select process")) {
+            show_processes_window = true;
+
+            UpdateProcessList();
+        }
+
+        if (show_processes_window) {
+            static int current_item = 0;
+
+            if (ImGui::Begin("Select process from list", &show_processes_window, ImGuiWindowFlags_NoScrollbar)) {
+                if (ImGui::BeginListBox("##process_list", ImVec2(ImGui::GetWindowSize().x * 0.95f, ImGui::GetWindowSize().y * 0.8f))) {
+                    
+
+                    for (int i = 0; i < process_names_list.size(); ++i) {
+                        ImGui::PushID(i); // guaranteed unique
+                        bool is_selected = (current_item == i);
+                        if (ImGui::Selectable(process_names_list[i].c_str(), is_selected))
+                            current_item = i;
+                        ImGui::PopID();
+                    }
+                }
+                ImGui::EndListBox();
+
+                if (ImGui::Button(ICON_FA_ROTATE_LEFT " Update")) {
+                    UpdateProcessList();
+                }
+                ImGui::SameLine();
+                if (ImGui::Button(ICON_FA_CHECK " Confirm")) {
+                    std::string selected_name = process_names_list[current_item];
+                    std::wstring selected_name_w = std::wstring(selected_name.begin(), selected_name.end());
+                    g_tracked_pid = ProcessHandler::GetPIDByProcessName(selected_name_w.c_str());
+
+                    show_processes_window = false;
+                }
+            }
+            ImGui::End();
+        }
+    }
+
+    /*******  NETWORK  ********/
+    void RenderNetworkTab()
+    {
+        ImGui::SeparatorText(ICON_FA_WIFI " Network");
+
+        if (!globals::is_gta5_running)
+        {
+            ImGui::Text("GTA 5 is not running.");
+        }
+        else
+        {
+            _network__no_save_exploit ?
+                ImGui::TextColored(ImVec4(0, 255, 0, 255), "Status: Active") : ImGui::TextColored(ImVec4(255, 0, 0, 255), "Status: Disabled");
+
+            std::string button_text = _network__no_save_exploit ? "Disable firewall rule" : "Enable firewall rule";
+            if (ImGui::Button(button_text.c_str()))
+            {
+                _network__no_save_exploit = !_network__no_save_exploit;
+                _network__no_save_exploit ? globals::NO_SAVE__AddFirewallRule() : globals::NO_SAVE__RemoveFirewallRule();
+            }
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::SetTooltip("Use this for heist replays");
+            }
+            if (ImGui::Button("Desync from GTA:O"))
+            {
+
+                progress = 0.0f;
+                progress_dir = 1.0f;
+                progress_duration = 10.0f;
+                progress_step = 0.0f;
+                isDesyncInProgress = false;
+
+                if (!globals::is_gta5_running)
+                {
+                    gta5NotRunning = true;
+                }
+                else
+                {
+                    ImGui::OpenPopup(popupTitle);
+                }
+            }
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::SetTooltip("Suspends the GTA5.exe process for 10 seconds, which results in you desyncing from the current GTA Online session.");
+            }
+
+            //desync confirmation popup
+            if (ImGui::BeginPopupModal(popupTitle, NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove))
+            {
+                ImGui::Text("This will desync you from your current GTA Online session.\nThis operation cannot be undone!");
+                ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "WARNING: DO NOT PRESS ANYTHING UNTIL THE GAME IS UNFREEZED!");
+                ImGui::Separator();
+                ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
+                ImGui::PopStyleVar();
+
+                if (progress_duration > 0.0f)
+                {
+                    progress_step = (1.0f / progress_duration) * ImGui::GetIO().DeltaTime;
+                }
+
+                if (ImGui::Button("OK", ImVec2(120, 0)))
+                {
+                    isDesyncInProgress = true;
+
+                    std::thread desyncThread(ProcessHandler::DesyncFromGTAOnline);
+                    desyncThread.detach();
+                }
+
+                ImGui::SetItemDefaultFocus();
+                ImGui::SameLine();
+
+                if (ImGui::Button("Cancel", ImVec2(120, 0)))
+                {
+                    ImGui::CloseCurrentPopup();
+                    isDesyncInProgress = false;
+                }
+
+                ImVec2 current_window_size = ImGui::GetWindowSize();
+                ImVec2 new_window_size = ImVec2(current_window_size.x, current_window_size.y + 950);
+                ImGui::SetWindowSize(new_window_size);
+                ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
+                ImVec2 spinner_position = ImVec2(cursor_pos.x + 10, cursor_pos.y + 20);
+                DrawSpinner(spinner_position, 15, 6, IM_COL32(0, 75, 255, 255));
+                ImDrawList* draw_list = ImGui::GetWindowDrawList();
+
+                if (isDesyncInProgress)
+                {
+                    progress += progress_step * progress_dir;
+
+                    if (progress >= 1.0f)
+                    {
+                        progress = 1.0f;
+                        progress_dir = 0.0f;
+                        ImGui::CloseCurrentPopup();
+                    }
+
+                    ImGui::Text("Desyncing, please wait...");
+                    ImGui::Text(" ");
+                    ImGui::Text("  ");
+                }
+
+                ImGui::EndPopup();
+            }
+        }
+    }
+
+    /*******  SYSTEM  *********/
+    void RenderSystemTab()
+    {
+        ImGui::SeparatorText(ICON_FA_CLOCK " Date & Time");
+        ImGui::Text("Time: %s", FormattedInfo::GetFormattedTime().c_str());
+        ImGui::SameLine();
+        ImGui::Spacing();
+        ImGui::SameLine();
+        ImGui::Spacing();
+        ImGui::SameLine();
+        ImGui::Text("Date: %s", FormattedInfo::GetFormattedDate().c_str());
+        ImGui::Spacing();
+
+        ImGui::SeparatorText(ICON_FA_GAUGE_HIGH " System Usage");
+        ImGui::Text("CPU Usage: %s", FormattedInfo::GetFormattedCPUUsage().c_str());
+        ImGui::SameLine();
+        ImGui::Text("  Running processes: %s", FormattedInfo::GetFormattedRP().c_str());
+
+        static float cpuUsageHistory[100] = { 0 };
+        static int historyIndex = 0;
+        static float lastCPUUsage = -1.0f;
+        float currentCPUUsage = std::stof(FormattedInfo::GetFormattedCPUUsage());
+
+        cpuUsageHistory[historyIndex] = currentCPUUsage;
+        historyIndex = (historyIndex + 1) % IM_ARRAYSIZE(cpuUsageHistory);
+        lastCPUUsage = currentCPUUsage;
+
+        float average = 0.0f;
+        for (int n = 0; n < IM_ARRAYSIZE(cpuUsageHistory); n++)
+            average += cpuUsageHistory[n];
+        average /= (float)IM_ARRAYSIZE(cpuUsageHistory);
+
+        char overlay[32];
+        sprintf_s(overlay, "Avg: %.1f%%", average);
+
+        ImGui::PlotLines(
+            "##CPUUsageGraph",
+            cpuUsageHistory,
+            IM_ARRAYSIZE(cpuUsageHistory),
+            historyIndex,
+            overlay,
+            0.0f,
+            100.0f,
+            ImVec2(230, 60)
+        );
+        ImGui::Text("RAM Usage: %s", FormattedInfo::GetFormattedRAMUsage().c_str());
+
+        ImGui::SeparatorText(ICON_FA_DESKTOP " Screen");
+        ImGui::PushItemWidth(110.f);
+
+        if (ImGui::BeginCombo("Resolution##Screen", resolutionOptions[currentResolution]))
+        {
+            for (int i = 0; i < resolutionOptions.size(); i++)
+            {
+                bool isSelected = (currentResolution == i);
+                if (ImGui::Selectable(resolutionOptions[i], isSelected))
+                {
+                    currentResolution = i;
+                }
+                if (isSelected)
+                {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+            ImGui::EndCombo();
+        }
+
+        ImGui::PopItemWidth();
+
+        if (ImGui::Button(ICON_FA_CHECK " Apply"))
+        {
+            int width = 0, height = 0;
+            sscanf_s(resolutionOptions[currentResolution], "%dx%d", &width, &height);
+            System::ChangeResolution(width, height);
+
+            
+        }
+
+        ImGui::SeparatorText(ICON_FA_POWER_OFF " Power");
+        ImGui::PushItemWidth(110.f);
+
+        if (ImGui::BeginCombo("Select##Power", power_options[currentPowerOption]))
+        {
+            for (int i = 0; i < IM_ARRAYSIZE(power_options); ++i)
+            {
+                bool is_selected = (currentPowerOption == i);
+                if (ImGui::Selectable(power_options[i], is_selected))
+                    currentPowerOption = i;
+                if (is_selected)
+                    ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
+        }
+        ImGui::PopItemWidth();
+
+        if (ImGui::Button(ICON_FA_POWER_OFF " Execute"))
+        {
+            EnableShutdownPrivilege();
+
+            switch (currentPowerOption)
+            {
+            case 0: // Shutdown
+                InitiateSystemShutdownExW(
+                    NULL,
+                    NULL,
+                    0,
+                    TRUE,
+                    FALSE,
+                    SHTDN_REASON_FLAG_USER_DEFINED
+                );
+                break;
+
+            case 1: // Restart
+                InitiateSystemShutdownExW(
+                    NULL,
+                    NULL,
+                    0,
+                    TRUE,
+                    TRUE,
+                    SHTDN_REASON_FLAG_USER_DEFINED
+                );
+                break;
+
+            case 2: // Sleep
+                SetSuspendState(FALSE, TRUE, FALSE);
+                break;
+            }
+        }
+    }
+
+    /*********  INFO  *********/
+    void RenderInfoTab()
+    {
+        ImGui::SeparatorText(ICON_FA_KEYBOARD " Keybinds");
+        ImGui::Text("[F5] Start/Stop a timer. (Shows in the overlay)");
+        ImGui::Text("[Insert] Switch between window modes.");
+        ImGui::Text("[End] Exit the program.");
+
+        ImGui::Spacing();
+        ImGui::SeparatorText(ICON_FA_GLOBE " Websites");
+        ImGui::TextLinkOpenURL("GTA:O Map", "https://gtaweb.eu/gtao-map/ls/");
+        ImGui::TextLinkOpenURL("R* Activity Feed", "https://socialclub.rockstargames.com/");
+        ImGui::TextLinkOpenURL("R* Newswire", "https://www.rockstargames.com/newswire/");
+        ImGui::TextLinkOpenURL("R* Community Races", "https://socialclub.rockstargames.com/jobs/?dateRangeCreated=any&platform=pc&sort=likes&title=gtav/");
+    }
+
+    /*******  EXTRAS  *********/
+    void RenderExtrasTab()
+    {
+        ImGui::SeparatorText(ICON_FA_COOKIE " Cookie Clicker");
+        if (ImGui::Button(ICON_FA_ARROW_POINTER " Click for points"))
+        {
+            clickedTimes++;
+        }
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("Click to add a point.\nCurrent points: %d", clickedTimes);
+        }
+
+        ImGui::Text("Points: %d", clickedTimes);
+        ImGui::Spacing();
+        ImGui::SeparatorText(ICON_FA_TABLE_CELLS " Tic-Tac-Toe");
+
+        //tic tac toe
+        ImVec4 playerColor = ImVec4(0.0f, 1.0f, 0.0f, 1.0f); // Green for player
+        ImVec4 aiColor = ImVec4(1.0f, 0.0f, 0.0f, 1.0f);     // Red for AI
+        ImVec4 drawColor = ImVec4(0.5f, 0.5f, 0.5f, 1.0f);   // Gray for Draw
+        TicTacToe::DrawTicTacToeInsideWindow(playerColor, aiColor, drawColor);
+    }
+
+    /*********  LOGS  *********/
+    void RenderLogsTab()
+    {
+        ImGui::SeparatorText(ICON_FA_CLIPBOARD_LIST " Logs");
+
+        if (ImGui::Button(ICON_FA_ERASER " Clear"))
+        {
+            logBuffer.clear();
+            gui::LogImGui("Logs cleared", 1);
+        }
+        ImGui::SameLine();
+        ImGui::Checkbox("External Logs Window", &externalLogsWindowActive);
+        ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));
+
+        ImGui::BeginChild("LogChild", ImVec2(0, -ImGui::GetTextLineHeightWithSpacing()), true, ImGuiWindowFlags_HorizontalScrollbar);
+
+        for (const auto& log : logBuffer)
+        {
+            ImVec4 textColor;
+
+            if (log.find("[info]") == 0)
+            {
+                textColor = ImVec4(0.5f, 0.8f, 1.0f, 1.0f);
+            }
+            else if (log.find("[warning]") == 0)
+            {
+                textColor = ImVec4(1.0f, 1.0f, 0.0f, 1.0f);
+            }
+            else if (log.find("[error]") == 0)
+            {
+                textColor = ImVec4(1.0f, 0.0f, 0.0f, 1.0f); 
+            }
+            else
+            {
+                textColor = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+            }
+
+            ImGui::TextColored(textColor, "%s", log.c_str());
+        }
+        if (scrollToBottom)
+        {
+            ImGui::SetScrollHereY(1.0f);
+            scrollToBottom = false;
+        }
+
+        ImGui::EndChild();
+        ImGui::PopStyleColor();
+    }
+
+    void RenderModsTab()
+    {
+        static constexpr const char* GTA_PATH = "C:\\Steam\\steamapps\\common\\Grand Theft Auto V Enhanced";
+        static const std::vector<const char*> LEGIT_FILES = {
+            "amd_ags_x64.dll",
+            "amd_fidelityfx_dx12.dll",
+            "bink2w64.dll",
+            "dstorage.dll",
+            "dstoragecore.dll",
+            "fvad.dll",
+            "GFSDK_Aftermath_Lib.x64.dll",
+            "libcurl.dll",
+            "libtox.dll",
+            "nvngx_dlss.dll",
+            "oo2core_5_win64.dll",
+            "opus.dll",
+            "opusenc.dll",
+            "sl.common.dll",
+            "sl.dlss.dll",
+            "sl.interposer.dll",
+            "sl.pcl.dll",
+            "sl.reflex.dll",
+            "steam_api64.dll",
+            "XCurl.dll",
+            "zlib1.dll",
+            "nvngx_dlssg.dll",
+            "sl.dlss_g.dll",
+
+            "installscript.vdf",
+            "installscript_sdk.vdf",
+            "title.rgl",
+            "rpf.cache",
+
+            "GTA5.exe",
+            "GTA5_Enhanced.exe",
+            "GTA5_Enhanced_BE.exe",
+            "PlayGTAV.exe",
+
+            "common.rpf",
+            "x64a.rpf",
+            "x64b.rpf",
+            "x64c.rpf",
+            "x64d.rpf",
+            "x64e.rpf",
+            "x64f.rpf",
+            "x64g.rpf",
+            "x64h.rpf",
+            "x64i.rpf",
+            "x64j.rpf",
+            "x64k.rpf",
+            "x64l.rpf",
+            "x64m.rpf",
+            "x64n.rpf",
+            "x64o.rpf",
+            "x64p.rpf",
+            "x64q.rpf",
+            "x64r.rpf",
+            "x64s.rpf",
+            "x64t.rpf",
+            "x64u.rpf",
+            "x64v.rpf",
+            "x64w.rpf"
+        };
+
+        static std::vector<std::filesystem::path> modFiles;
+
+        ImGui::SeparatorText(ICON_FA_GAMEPAD " Mods");
+        if (globals::is_gta5_running) {
+            ImGui::Text("GTA 5 is running, cannot manage mods.");
+            return;
+        }
+
+        modFiles.clear();
+        const std::filesystem::path gtaPath(GTA_PATH);
+
+        wchar_t exePathBuffer[MAX_PATH];
+        GetModuleFileNameW(nullptr, exePathBuffer, MAX_PATH);
+        const std::filesystem::path exePath = std::filesystem::path(exePathBuffer).parent_path();
+
+        const std::filesystem::path whitelistPath = exePath / "gta5_mod_whitelist";
+
+        for (const auto& entry : std::filesystem::directory_iterator(gtaPath)) {
+            if (!entry.is_regular_file()) continue;
+
+            auto filename = entry.path().filename().string();
+            if (filename == "desktop.ini") continue;
+
+            bool isLegit = std::ranges::any_of(LEGIT_FILES, [&](const char* legit) {
+                return _stricmp(filename.c_str(), legit) == 0; // Case-insensitive compare
+                });
+
+            if (!isLegit) {
+                modFiles.push_back(entry.path());
+            }
+        }
+
+        ImGui::Text("Mods in GTA 5 Folder");
+        ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));
+        ImGui::BeginChild("ModListChild", ImVec2(0, 280), true);
+        for (const auto& mod : modFiles) {
+            ImGui::Text("%s", mod.filename().string().c_str());
+        }
+        ImGui::EndChild();
+        ImGui::PopStyleColor();
+
+        if (ImGui::Button("Move mods to whitelist")) {
+            MoveFiles(modFiles, whitelistPath);
+        }
+
+        if (ImGui::Button("Move mods back to GTA V folder")) {
+            std::vector<std::filesystem::path> returnMods;
+            for (const auto& entry : std::filesystem::directory_iterator(whitelistPath)) {
+                if (entry.is_regular_file()) {
+                    returnMods.push_back(entry.path());
+                }
+            }
+            MoveFiles(returnMods, gtaPath);
+        }
+    }
+
+    /***************************************************************/
+    /**************************  TABS  *****************************/
+    /***************************************************************/
+
+    void RenderTablist()
+    {
+        using gui::GuiTabs;
+
+        ImGui::BeginChild("Tablist", ImVec2(ImGui::GetWindowSize().x / 4, 0), true);
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2.4f);
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 6)); // 8 - default horizontal, 4 - default vertical
+
+        auto render_tab_button = [](const char* label, GuiTabs tab_id, GuiTabs& current_tab) {
+            bool selected = (current_tab == tab_id);
+
+            if (!selected) {
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.35f, 0.35f, 0.35f, 1.0f));
+            }
+
+            if (ImGui::Button(label, ImVec2(ImGui::GetContentRegionAvail().x, 40.f))) {
+                current_tab = tab_id;
+            }
+
+            if (!selected) {
+                ImGui::PopStyleColor(3);
+            }
+        };
+
+        render_tab_button("Main", GuiTabs::TAB_MAIN, current_tab);
+        render_tab_button("Utility", GuiTabs::TAB_UTILITY, current_tab);
+        render_tab_button("Network", GuiTabs::TAB_NETWORK, current_tab);
+        render_tab_button("Mods", GuiTabs::TAB_MODS, current_tab);
+        render_tab_button("System", GuiTabs::TAB_SYSTEM, current_tab);
+        render_tab_button("Info", GuiTabs::TAB_INFO, current_tab);
+        render_tab_button("Extras", GuiTabs::TAB_EXTRAS, current_tab);
+        render_tab_button("Logs", GuiTabs::TAB_LOGS, current_tab);
+
+        ImGui::PopStyleVar(2);
+        ImGui::EndChild();
+    }
+
+
+
+}
+
+
 
 void RenderMain(bool p_gta5NotRunning, bool p_fivemNotRunning)
 {
+    using gui::GuiTabs;
 
     ImGuiIO& io = ImGui::GetIO();
 
 
     ImGui::Begin(mainWindowTitle.c_str(), &globals::pForceHideWindow);  // Main window
 
+    MainWindow::RenderTablist();
+    ImGui::SameLine();
+    ImGui::BeginChild("ContentMain", ImVec2(0, 0), true);
 
-
-    if (ImGui::BeginTabBar("tab_bar1"))
+    switch (current_tab)
     {
 
-
-
-        // Main tab
-        if (ImGui::BeginTabItem("Main"))
-        {
-
-            ImGui::SeparatorText(ICON_FA_HAMMER " General");
-
-            ImGui::Text("Overlay FPS: %.1f", io.Framerate);
-
-
-            if (!p_gta5NotRunning || !p_fivemNotRunning) 
-            {
-                ImGui::Text("Current session: %s", ProcessHandler::GetCurrentSession().c_str());
-
-            }
-            else 
-            {
-                ProcessHandler::ResetSession();
-                //ImGui::Text("No active GTA 5 or FiveM session");
-            }
-
-            ImGui::Text("Last Timer Result: %s", globals::lastTimerResult.c_str());
-
-            if (p_gta5NotRunning && p_fivemNotRunning) 
-            {
-
-                ImGui::SetNextItemWidth(128.0f);
-
-                // Create the combo box with three selections
-                const char* comboItems[] = { "GTA 5", "GTA 5 (Online)", "GTA 5 (Modded)", "FiveM" };
-                if (ImGui::BeginCombo("##GameCombo", comboItems[currentSelection]))
-                {
-                    for (int i = 0; i < IM_ARRAYSIZE(comboItems); i++) 
-                    {
-                        bool isSelected = (currentSelection == i);
-                        if (ImGui::Selectable(comboItems[i], isSelected))
-                        {
-                            currentSelection = i;  // Update the current selection based on user input
-                        }
-                        if (isSelected) 
-                        {
-                            ImGui::SetItemDefaultFocus();  // Keep the default selection focused
-                        }
-                    }
-                    ImGui::EndCombo();
-                }
-
-
-                if (ImGui::Button(ICON_FA_CHECK " Launch##Main"))
-                {
-                    switch (currentSelection) 
-                    {
-                    case 0:
-                        // Launch GTA 5 normally
-                        ProcessHandler::LaunchGTA5(true, false);
-                        break;
-                    case 1:
-                        // Launch GTA 5 straight into online
-                        ProcessHandler::LaunchGTA5(true, true);
-                        break;
-                    case 2:
-                        // Launch GTA 5 without anticheat (used for modded game)
-                        ProcessHandler::LaunchGTA5(false, false);
-                        break;
-                    case 3:
-                        // Launch FiveM
-                        ProcessHandler::LaunchFiveM();
-                        break;
-                    default:
-                        ImGui::Text("[Error] Invalid selection");
-                        break;
-                    }
-                }
-
-                if (ImGui::IsItemHovered())
-                {
-                    ImGui::SetTooltip("Launches the selected game.");
-                }
-
-
-
-                ImGui::SameLine();
-            }
-
-
-            if (ProcessHandler::IsProcessRunning(L"GTA5_Enhanced.exe") || ProcessHandler::IsProcessRunning(L"FiveM.exe"))
-            {
-                if (ImGui::Button(ICON_FA_XMARK " Exit Game"))
-                {
-                    gta5NotRunning = !ProcessHandler::TerminateGTA5();
-                    fivemNotRunning = !ProcessHandler::TerminateGTA5();
-                }
-
-
-                if (ImGui::IsItemHovered()) 
-                {
-                    ImGui::SetTooltip("Terminates the GTA 5 or FiveM process.");
-                }
-
-
-
-                ImGui::SameLine();
-            }
-
-            if (ImGui::Button(ICON_FA_EXPAND " Launch LS"))
-            {
-                LaunchLS();
-            }
-            if (ImGui::IsItemHovered())
-            {
-                ImGui::SetTooltip("Launches Lossless Scaling");
-            }
-
-
-            if (gta5NotRunning) 
-            {
-                ImGui::Text("GTA5.exe isn't running.");
-            }
-            else if (fivemNotRunning)
-            {
-                ImGui::Text("FiveM.exe isn't running.");
-            }
-
-
-
-
-            ImGui::SeparatorText(ICON_FA_GEAR " Settings");
-
-            ImVec2 childSize = ImVec2(0, ImGui::GetContentRegionAvail().y * 0.95f);
-            if (ImGui::BeginChild("SettingsChild", childSize, true))
-            {
-                if (ImGui::CollapsingHeader(ICON_FA_LIST_CHECK " Options", ImGuiTreeNodeFlags_DefaultOpen))
-                {
-                    ImGui::Checkbox("GTA 5 Menu", &showGTA5styleWindow);
-                    if (ImGui::IsItemHovered())
-                    {
-                        ImGui::SetTooltip("Toggles the GTA 5 interaction menu style window.");
-                    }
-
-                    ImGui::Checkbox("GTA 5 Map", &showGta5MapWindow);
-                    if (ImGui::IsItemHovered())
-                    {
-                        ImGui::SetTooltip("Toggles the map window.");
-                    }
-
-                    ImGui::Checkbox("Overlay", &globals::overlayToggled);
-                    if (ImGui::IsItemHovered())
-                    {
-                        ImGui::SetTooltip("If disabled, overlay will not show.");
-                    }
-
-
-                    ImGui::Checkbox("BG Interaction", &noActivateFlag);
-                    if (ImGui::IsItemHovered())
-                    {
-                        ImGui::SetTooltip("If enabled, the window will behave more like an overlay. (Reopen the menu to apply changes) [WS_EX_NOACTIVATE]");
-                    }
-
-
-                    ImGui::Checkbox("Demo Window", &showImGuiDebugWindow);
-                    if (ImGui::IsItemHovered())
-                    {
-                        ImGui::SetTooltip("Toggles the ImGui demo window.");
-                    }
-
-                    if (ImGui::Checkbox("This Window", &showOtherWindow))
-                    {
-                        showGTA5styleWindow = true;
-                    }
-                    if (ImGui::IsItemHovered())
-                    {
-                        ImGui::SetTooltip("Hides this window, and shows the GTA 5 style window.");
-                    }
-                }
-
-                if (ImGui::CollapsingHeader(ICON_FA_FOLDER " Save & Load"))
-                {
-                    if (ImGui::Button(ICON_FA_FLOPPY_DISK " Save")) { SaveSettings(global_settings, config_filename); }
-                    if (ImGui::Button(ICON_FA_FOLDER_OPEN " Load")) { LoadSettings(global_settings, config_filename); }
-                    if (ImGui::Button(ICON_FA_ROTATE_LEFT " Reset")) { ResetSettings(global_settings, config_filename); }
-                }
-            }
-            ImGui::EndChild();
-
-            ImGui::EndTabItem();
+        case GuiTabs::TAB_MAIN: {
+            MainWindow::RenderMainTab();
+            break;
+        }
+        case GuiTabs::TAB_UTILITY: {
+            MainWindow::RenderUtilityTab();
+            break;
+        }
+        case GuiTabs::TAB_NETWORK: {
+            MainWindow::RenderNetworkTab();
+            break;
+        }
+        case GuiTabs::TAB_MODS: {
+            MainWindow::RenderModsTab();
+            break;
+        }
+        case GuiTabs::TAB_SYSTEM: {
+            MainWindow::RenderSystemTab();
+            break;
+        }
+        case GuiTabs::TAB_INFO: {
+            MainWindow::RenderInfoTab();
+            break;
+        }
+        case GuiTabs::TAB_EXTRAS: {
+            MainWindow::RenderExtrasTab();
+            break;
+        }
+        case GuiTabs::TAB_LOGS: {
+            MainWindow::RenderLogsTab();
+            break;
+        }
+        default: {
+            MainWindow::RenderMainTab();
+            break;
         }
 
-
-
-        if (ImGui::BeginTabItem("Utility"))
-        {
-            ImGui::SeparatorText(ICON_FA_DOLLAR_SIGN " Money Calculations");
-            ImGui::Spacing();
-
-            ImGui::BeginChild("moneyTextFields", ImVec2(128, 105), true);
-            ImGui::PushItemWidth(112.0f);
-
-
-
-            
-            ImGui::TextColored(subTitleColor, "Input details...");
-
-            // GUI input and calculation handling
-            if (ImGui::InputTextWithHint("##currentMoney", "Current money", currentPlayerMoneyBuffer, sizeof(currentPlayerMoneyBuffer), ImGuiInputTextFlags_CharsDecimal))
-            {
-
-
-                int currentPlayerMoney = Calculations::ParseInteger(currentPlayerMoneyBuffer);
-                if (currentPlayerMoney == -1)
-                {
-                    currentPlayerMoneyBuffer[0] = '\0'; // Make the text field blank
-                }
-                else
-                {
-                    snprintf(currentPlayerMoneyBuffer, sizeof(currentPlayerMoneyBuffer), "%d", currentPlayerMoney);
-                }
-            }
-
-            
-
-
-            // Money to receive input
-            if (ImGui::InputTextWithHint("##moneyToReceive", "Received money", moneyToReceiveBuffer, sizeof(moneyToReceiveBuffer), ImGuiInputTextFlags_CharsDecimal)) 
-            {
-                int moneyToReceive = Calculations::ParseInteger(moneyToReceiveBuffer);
-                if (moneyToReceive == -1) 
-                {
-                    moneyToReceiveBuffer[0] = '\0'; // Make the text field blank
-                }
-                else 
-                {
-                    snprintf(moneyToReceiveBuffer, sizeof(moneyToReceiveBuffer), "%d", moneyToReceive);
-                }
-            }
-
-            //ImGui::SameLine();
-
-            // CEO bonus input
-            if (ImGui::InputTextWithHint("##ceoBonus", "CEO's in lobby", ceoBonusBuffer, sizeof(ceoBonusBuffer), ImGuiInputTextFlags_CharsDecimal))
-            {
-                int ceoBonus = Calculations::ParseInteger(ceoBonusBuffer);
-                if (ceoBonus == -1)
-                {
-                    ceoBonusBuffer[0] = '\0'; // Make the text field blank
-                }
-                else 
-                {
-                    snprintf(ceoBonusBuffer, sizeof(ceoBonusBuffer), "%d", ceoBonus);
-                }
-            }
-
-
-            ImGui::PopItemWidth();
-
-            ImGui::EndChild();
-
-            
-            ImGui::SameLine();
-
-            ImGui::BeginGroup();
-            
-
-            //convert to int
-            int currentPlayerMoney = Calculations::ParseInteger(currentPlayerMoneyBuffer);
-            int moneyToReceive = Calculations::ParseInteger(moneyToReceiveBuffer);
-            int ceoBonus = Calculations::ParseInteger(ceoBonusBuffer);
-
-            if (ImGui::Button(ICON_FA_CALCULATOR " Calculate Total Money"))
-            {
-                std::string result = Calculations::CalculateTotalMoney(currentPlayerMoney, moneyToReceive, ceoBonus);
-                strncpy_s(totalMoneyText, sizeof(totalMoneyText), result.c_str(), sizeof(totalMoneyText) - 1);
-            }
-
-            
-
-            ImGui::Text("Total Money: %s", totalMoneyText); //calculated money text
-
-
-            ImGui::EndGroup();
-
-
-
-
-            ImGui::EndTabItem();
-        }
-
-     
-        if (ImGui::BeginTabItem("Network")) 
-        {
-            ImGui::SeparatorText(ICON_FA_WIFI " Network");
-
-            if (!ProcessHandler::IsProcessRunning(L"GTA5_Enhanced.exe"))
-            {
-                ImGui::Text("GTA 5 is not running.");
-            } 
-            else
-            {
-
-
-                _network__no_save_exploit ?
-                    ImGui::TextColored(ImVec4(0, 255, 0, 255), "Status: Active") : ImGui::TextColored(ImVec4(255, 0, 0, 255), "Status: Disabled");
-
-                std::string button_text = _network__no_save_exploit ? "Disable firewall rule" : "Enable firewall rule";
-                if (ImGui::Button(button_text.c_str()))
-                {
-                    _network__no_save_exploit = !_network__no_save_exploit;
-                    _network__no_save_exploit ? globals::NO_SAVE__AddFirewallRule() : globals::NO_SAVE__RemoveFirewallRule();
-                }
-                if (ImGui::IsItemHovered())
-                {
-                    ImGui::SetTooltip("Use this for heist replays");
-                }
-
-
-
-                if (ImGui::Button("Desync from GTA:O"))
-                {
-
-                    progress = 0.0f;
-                    progress_dir = 1.0f;
-                    progress_duration = 10.0f;
-                    progress_step = 0.0f;
-
-                    isDesyncInProgress = false;
-
-
-                    if (!ProcessHandler::IsProcessRunning(globals::gtaProcess.c_str()))
-                    {
-                        gta5NotRunning = true;
-                    }
-                    else
-                    {
-                        ImGui::OpenPopup(popupTitle);
-                    }
-                }
-                if (ImGui::IsItemHovered())
-                {
-                    ImGui::SetTooltip("Suspends the GTA5.exe process for 10 seconds, which results in you desyncing from the current GTA Online session.");
-                }
-
-                //desync confirmation popup
-                if (ImGui::BeginPopupModal(popupTitle, NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove))
-                {
-                    ImGui::Text("This will desync you from your current GTA Online session.\nThis operation cannot be undone!");
-                    ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "WARNING: DO NOT PRESS ANYTHING UNTIL THE GAME IS UNFREEZED!");
-                    ImGui::Separator();
-
-                    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
-                    ImGui::PopStyleVar();
-
-                    if (progress_duration > 0.0f)
-                    {
-                        progress_step = (1.0f / progress_duration) * ImGui::GetIO().DeltaTime; // How much progress to add per frame
-                    }
-
-                    // If "OK" button clicked, start desync operation and set progress flag
-                    if (ImGui::Button("OK", ImVec2(120, 0)))
-                    {
-                        isDesyncInProgress = true;
-
-                        std::thread desyncThread(ProcessHandler::DesyncFromGTAOnline);
-                        desyncThread.detach();
-                    }
-
-                    ImGui::SetItemDefaultFocus();
-                    ImGui::SameLine();
-
-                    // Close popup if user clicks "Cancel"
-                    if (ImGui::Button("Cancel", ImVec2(120, 0))) 
-                    {
-                        ImGui::CloseCurrentPopup();
-                        isDesyncInProgress = false; // Cancel progress
-                    }
-
-
-                    ImVec2 current_window_size = ImGui::GetWindowSize();
-                    ImVec2 new_window_size = ImVec2(current_window_size.x, current_window_size.y + 950); // Increase height by 50 units
-                    ImGui::SetWindowSize(new_window_size);
-
-                    // Get the current cursor position in the window
-                    ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
-
-                    // Set the spinner's position slightly offset from the cursor
-                    ImVec2 spinner_position = ImVec2(cursor_pos.x + 10, cursor_pos.y + 20);
-
-                    // Draw the spinner at the specified position
-                    DrawSpinner(spinner_position, 15, 6, IM_COL32(0, 75, 255, 255));
-
-                    // Get the current window's draw list
-                    ImDrawList* draw_list = ImGui::GetWindowDrawList();
-
-
-                    // If desync is in progress, show the progress bar
-                    if (isDesyncInProgress) 
-                    {
-                        // Increment progress based on the frame time and direction
-                        progress += progress_step * progress_dir;
-
-                        // Ensure progress stays within the 0.0f to 1.0f range
-                        if (progress >= 1.0f) 
-                        {
-                            progress = 1.0f;
-                            progress_dir = 0.0f; // Stop the progress after reaching 100%
-                            ImGui::CloseCurrentPopup(); // Close the popup after reaching 100%
-                        }
-
-                        ImGui::Text("Desyncing, please wait...");
-                        ImGui::Text(" ");
-                        ImGui::Text("  ");
-
-
-                        //ImGui::ProgressBar(progress, ImVec2(0.0f, 0.0f));
-
-                    }
-
-
-
-
-                    ImGui::EndPopup();
-                }
-            }
-
-
-            ImGui::EndTabItem();
-        }
-
-
-
-            // System tab
-        if (ImGui::BeginTabItem("System"))
-        {
-
-            ImGui::SeparatorText(ICON_FA_CLOCK " Date & Time");
-
-
-
-            ImGui::Text("Time: %s", FormattedInfo::GetFormattedTime().c_str());
-            ImGui::SameLine();
-            ImGui::Spacing();
-            ImGui::SameLine();
-            ImGui::Spacing();
-            ImGui::SameLine();
-            ImGui::Text("Date: %s", FormattedInfo::GetFormattedDate().c_str());
-
-
-
-            ImGui::Spacing();
-            ImGui::SeparatorText(ICON_FA_GAUGE_HIGH " System Usage");
-
-
-            ImGui::Text("CPU Usage: %s", FormattedInfo::GetFormattedCPUUsage().c_str());
-            ImGui::SameLine();
-            ImGui::Text("  Running processes: %s", FormattedInfo::GetFormattedRP().c_str());
-
-
-
-            static float cpuUsageHistory[100] = { 0 };
-            static int historyIndex = 0;
-            static float lastCPUUsage = -1.0f;
-
-            // Fetch CPU usage
-            float currentCPUUsage = std::stof(FormattedInfo::GetFormattedCPUUsage());
-
-            // Store the new value only if it has changed
-            cpuUsageHistory[historyIndex] = currentCPUUsage;
-            historyIndex = (historyIndex + 1) % IM_ARRAYSIZE(cpuUsageHistory);
-            lastCPUUsage = currentCPUUsage;
-
-            // Compute rolling average for smoother movement
-            float average = 0.0f;
-            for (int n = 0; n < IM_ARRAYSIZE(cpuUsageHistory); n++)
-                average += cpuUsageHistory[n];
-            average /= (float)IM_ARRAYSIZE(cpuUsageHistory);
-
-            // Create an overlay text for average CPU usage
-            char overlay[32];
-            sprintf_s(overlay, "Avg: %.1f%%", average);
-
-            // Render the smoothed graph
-            ImGui::PlotLines(
-                "##CPUUsageGraph",
-                cpuUsageHistory,
-                IM_ARRAYSIZE(cpuUsageHistory),
-                historyIndex,
-                overlay,  // Show the average usage in the overlay
-                0.0f,
-                100.0f,
-                ImVec2(230, 60)
-            );
-            ImGui::Text("RAM Usage: %s", FormattedInfo::GetFormattedRAMUsage().c_str());
-
-            ImGui::SeparatorText(ICON_FA_ARROW_POINTER " Actions");
-
-            if (ImGui::BeginChild("SystemActionsChildW", ImVec2(0, -ImGui::GetTextLineHeightWithSpacing()), true, ImGuiWindowFlags_HorizontalScrollbar))
-            {
-
-                ImGui::SeparatorText(ICON_FA_DESKTOP " Screen");
-
-                ImGui::PushItemWidth(110.f);
-
-                if (ImGui::BeginCombo("Resolution##Screen", resolutionOptions[currentResolution]))
-                {
-                    for (int i = 0; i < resolutionOptions.size(); i++)
-                    {
-                        bool isSelected = (currentResolution == i);
-                        if (ImGui::Selectable(resolutionOptions[i], isSelected))
-                        {
-                            currentResolution = i;
-                        }
-                        if (isSelected)
-                        {
-                            ImGui::SetItemDefaultFocus();
-                        }
-                    }
-                    ImGui::EndCombo();
-                }
-
-                ImGui::PopItemWidth();
-
-                // Apply Button
-                if (ImGui::Button(ICON_FA_CHECK " Apply"))
-                {
-                    int width = 0, height = 0;
-                    sscanf_s(resolutionOptions[currentResolution], "%dx%d", &width, &height);
-                    System::ChangeResolution(width, height);
-                }
-
-                ImGui::SeparatorText(ICON_FA_POWER_OFF " Power");
-
-                ImGui::PushItemWidth(110.f);
-
-                if (ImGui::BeginCombo("Select##Power", power_options[currentPowerOption]))
-                {
-                    for (int i = 0; i < IM_ARRAYSIZE(power_options); ++i)
-                    {
-                        bool is_selected = (currentPowerOption == i);
-                        if (ImGui::Selectable(power_options[i], is_selected))
-                            currentPowerOption = i;
-                        if (is_selected)
-                            ImGui::SetItemDefaultFocus();
-                    }
-                    ImGui::EndCombo();
-                }
-
-
-                ImGui::PopItemWidth();
-
-                if (ImGui::Button(ICON_FA_POWER_OFF " Execute"))
-                {
-                    EnableShutdownPrivilege();
-
-                    switch (currentPowerOption)
-                    {
-                    case 0: // Shutdown
-                        InitiateSystemShutdownExW(
-                            NULL,
-                            NULL,
-                            0,
-                            TRUE,
-                            FALSE,
-                            SHTDN_REASON_FLAG_USER_DEFINED
-                        );
-                        break;
-
-                    case 1: // Restart
-                        InitiateSystemShutdownExW(
-                            NULL,
-                            NULL,
-                            0,
-                            TRUE,
-                            TRUE,
-                            SHTDN_REASON_FLAG_USER_DEFINED
-                        );
-                        break;
-
-                    case 2: // Sleep
-                        SetSuspendState(FALSE, TRUE, FALSE);
-                        break;
-                    }
-                }
-            }
-            ImGui::EndChild();
-
-
-            ImGui::EndTabItem();
-
-        }
-        
-
-
-
-
-
-        // Info tab
-        if (ImGui::BeginTabItem("Info")) 
-        {
-
-            ImGui::SeparatorText(ICON_FA_KEYBOARD " Keybinds");
-
-            //F keybinds
-            ImGui::Text("[F5] Start/Stop a timer. (Shows in the overlay)");
-
-
-
-
-            ImGui::Text("[Insert] Switch between window modes.");
-            ImGui::Text("[End] Exit the program.");
-
-
-
-            ImGui::Spacing();
-            ImGui::SeparatorText(ICON_FA_GLOBE " Websites");
-
-
-            ImGui::TextLinkOpenURL("GTA:O Map", "https://gtaweb.eu/gtao-map/ls/");
-           /* ImGui::SameLine();
-            ImGui::Spacing();
-            ImGui::SameLine();
-            ImGui::Spacing();
-            ImGui::SameLine();
-            ImGui::Spacing();
-            ImGui::SameLine();
-            ImGui::Spacing();
-            ImGui::SameLine();
-            ImGui::Spacing();
-            ImGui::SameLine();*/
-            ImGui::TextLinkOpenURL("R* Activity Feed", "https://socialclub.rockstargames.com/");
-
-
-            ImGui::TextLinkOpenURL("R* Newswire", "https://www.rockstargames.com/newswire/");
-          /*  ImGui::SameLine();
-            ImGui::Spacing();
-            ImGui::SameLine();
-            ImGui::Spacing();
-            ImGui::SameLine();
-            ImGui::Spacing();
-            ImGui::SameLine();*/
-            ImGui::TextLinkOpenURL("R* Community Races", "https://socialclub.rockstargames.com/jobs/?dateRangeCreated=any&platform=pc&sort=likes&title=gtav/");
-
-            ImGui::EndTabItem();
-        }
-
-
-
-
-
-
-
-
-
-        // Extras tab
-        if (ImGui::BeginTabItem("Extras")) 
-        {
-
-
-            ImGui::SeparatorText(ICON_FA_COOKIE " Cookie Clicker");
-
-
-            if (ImGui::Button(ICON_FA_ARROW_POINTER " Click for points"))
-            {
-                clickedTimes++;
-            }
-            if (ImGui::IsItemHovered()) 
-            {
-                ImGui::SetTooltip("Click to add a point.\nCurrent points: %d", clickedTimes);
-            }
-
-            ImGui::Text("Points: %d", clickedTimes);
-
-
-            ImGui::Spacing();
-            ImGui::SeparatorText(ICON_FA_TABLE_CELLS " Tic-Tac-Toe");
-
-
-            //tic tac toe
-            ImVec4 playerColor = ImVec4(0.0f, 1.0f, 0.0f, 1.0f); // Green for player
-            ImVec4 aiColor = ImVec4(1.0f, 0.0f, 0.0f, 1.0f);     // Red for AI
-            ImVec4 drawColor = ImVec4(0.5f, 0.5f, 0.5f, 1.0f);   // Gray for Draw
-            TicTacToe::DrawTicTacToeInsideWindow(playerColor, aiColor, drawColor);
-
-
-
-
-            ImGui::EndTabItem();
-        }
- 
-        
-
-        // Logs tab
-        if (ImGui::BeginTabItem("Logs"))
-        {
-
-
-            ImGui::SeparatorText(ICON_FA_CLIPBOARD_LIST " Logs");
-
-
-
-            if (ImGui::Button(ICON_FA_ERASER " Clear"))
-            {
-                //clear logs
-                logBuffer.clear();
-                gui::LogImGui("Logs cleared", 1);
-            }
-            ImGui::SameLine();
-            ImGui::Checkbox("External Logs Window", &externalLogsWindowActive);
-
-
-            ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));
-
-            ImGui::BeginChild("LogChild", ImVec2(0, -ImGui::GetTextLineHeightWithSpacing()), true, ImGuiWindowFlags_HorizontalScrollbar);
-
-
-            for (const auto& log : logBuffer)
-            {
-                ImVec4 textColor;
-
-                if (log.find("[info]") == 0)
-                {
-                    textColor = ImVec4(0.5f, 0.8f, 1.0f, 1.0f); // Aqua
-                }
-                else if (log.find("[warning]") == 0)
-                {
-                    textColor = ImVec4(1.0f, 1.0f, 0.0f, 1.0f); // Yellow
-                }
-                else if (log.find("[error]") == 0)
-                {
-                    textColor = ImVec4(1.0f, 0.0f, 0.0f, 1.0f); // Red
-                }
-                else
-                {
-                    textColor = ImVec4(1.0f, 1.0f, 1.0f, 1.0f); // Default to white
-                }
-
-                // Render the log with the determined color
-                ImGui::TextColored(textColor, "%s", log.c_str());
-            }
-
-            if (scrollToBottom)
-            {
-                ImGui::SetScrollHereY(1.0f); // Scroll to the bottom
-                scrollToBottom = false; // Reset the flag to prevent excessive scrolling
-            }
-
-            ImGui::EndChild(); // End of the scrollable log section
-            ImGui::PopStyleColor();
-
-
-            // End the Tab Item
-            ImGui::EndTabItem();
-        }
-
-        ImGui::EndTabBar();
     }
+    ImGui::EndChild();
 
     ImGui::End();
 }
+
+
 
 bool isFileDialogOpen = false;
 
@@ -1545,10 +2013,11 @@ void Overlay_AddSection(const char* title, float windowWidth)
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::SetCursorPosX((windowWidth - text_width) / 2.0f);
-    ImGui::TextColored(subTitleColor_2, "%s", title);
+    ImGui::TextColored(subtitle_color, "%s", title);
     ImGui::Separator();
     ImGui::Spacing();
 }
+
 
 
 void RenderOverlays(bool p_gta5NotRunning, bool p_fivemNotRunning)
@@ -1562,6 +2031,10 @@ void RenderOverlays(bool p_gta5NotRunning, bool p_fivemNotRunning)
         ImGuiWindowFlags_NoSavedSettings |
         ImGuiWindowFlags_NoFocusOnAppearing |
         ImGuiWindowFlags_NoNav |
+        ImGuiWindowFlags_NoBringToFrontOnFocus |
+        ImGuiWindowFlags_NoMouseInputs |
+        ImGuiWindowFlags_NoNavInputs |
+        ImGuiWindowFlags_NoNavFocus |
         ImGuiWindowFlags_NoMove;
 
     const float PAD = 10.0f;
@@ -1583,7 +2056,7 @@ void RenderOverlays(bool p_gta5NotRunning, bool p_fivemNotRunning)
         float windowWidth = ImGui::GetWindowSize().x;
         float textWidth = ImGui::CalcTextSize(title).x;
         ImGui::SetCursorPosX((windowWidth - textWidth) / 2.0f);
-        ImGui::TextColored(subTitleColor, "%s", title); // subtitle_2 = subtitle, subtitle = title
+        ImGui::TextColored(title_color, "%s", title); // subtitle_2 = subtitle, subtitle = title
 
         ImGui::Spacing();
         ImGui::Separator();
@@ -1595,17 +2068,13 @@ void RenderOverlays(bool p_gta5NotRunning, bool p_fivemNotRunning)
 
         ImGui::Text("CPU: %s", FormattedInfo::GetFormattedCPUUsage().c_str());
         ImGui::Text("RAM: %s", FormattedInfo::GetFormattedRAMUsage().c_str());
+        DrawGPUUsage();
+        DrawVRAMUsage();
+        DrawCPUTemperature();
         
 
         if (!p_gta5NotRunning || !p_fivemNotRunning) {
             Overlay_AddSection("Game", windowWidth);
-
-            ImGui::Text("FPS: %d", GTA::GetCurrentFPS());
-
-            if (!p_gta5NotRunning)
-            {
-                ImGui::Text("Current patch: %s", gameVersionStr.c_str());
-            }
 
 
             if (!p_gta5NotRunning)
@@ -1618,40 +2087,137 @@ void RenderOverlays(bool p_gta5NotRunning, bool p_fivemNotRunning)
                 ImGui::Text("Currently playing FiveM");
             }
 
-            if (!p_gta5NotRunning || !p_fivemNotRunning)
-            {
-                ImGui::Text("Current session: %s", ProcessHandler::GetCurrentSession().c_str());
-            }
-            if (globals::isTimerRunning)
-            {
-                ImGui::Text("Timer: %s", FormattedInfo::GetFormattedTimer().c_str());
+            
+            ImGui::Text("Current session: %s", ProcessHandler::GetCurrentSession().c_str());
+            
+
+            if (!p_gta5NotRunning) {
+                ImGui::Text("Next weather: %s", gta5_online::get_next_weather_with_eta().c_str());
+                ImGui::Text("Time: %s", gta5_online::get_ingame_time().c_str());
+
+                if (_network__no_save_exploit) {
+                    ImGui::Text("R* cloud saves:");
+                    ImGui::SameLine();
+                    ImGui::TextColored(ImVec4(255, 0, 0, 255), "disabled");
+                }
             }
 
-            if (!p_gta5NotRunning && _network__no_save_exploit)
-            {
-                ImGui::Text("No Save Exploit:");
-                ImGui::SameLine();
-                ImGui::TextColored(ImVec4(0, 255, 0, 255), "active");
-            }
-
-            if (!p_gta5NotRunning)
-            {
-                ImGui::Text("Playing with: %d players", NetworkInfo::playerCount);
-            }
 
         }
 
 
         Overlay_AddSection("Menu", windowWidth);
-        
-        ImGui::Text("Overlay FPS: %.1f", io.Framerate);
+       
+        ImGui::Text("Overlay FPS: %.0f", io.Framerate);
         ImGui::Text("Menu running: %s", FormattedInfo::GetFormattedMenuUptime().c_str());
-        
-
+        if (globals::isTimerRunning)
+        {
+            ImGui::Text("Timer: %s", FormattedInfo::GetFormattedTimer().c_str());
+        }
 
     }
     ImGui::End();
 }
+
+
+void RenderPerformanceOverlay(bool p_gta5NotRunning, bool p_fivemNotRunning)
+{
+    static int location = 0;
+    ImGuiIO& io = ImGui::GetIO();
+    ImGuiWindowFlags window_flags =
+        ImGuiWindowFlags_NoDecoration |
+        ImGuiWindowFlags_AlwaysAutoResize |
+        ImGuiWindowFlags_NoSavedSettings |
+        ImGuiWindowFlags_NoFocusOnAppearing |
+        ImGuiWindowFlags_NoNav |
+        ImGuiWindowFlags_NoBringToFrontOnFocus |
+        ImGuiWindowFlags_NoMouseInputs |
+        ImGuiWindowFlags_NoNavInputs |
+        ImGuiWindowFlags_NoNavFocus |
+        ImGuiWindowFlags_NoMove;
+
+    const float PAD = 10.0f;
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    ImVec2 work_pos = viewport->WorkPos;
+    ImVec2 work_size = viewport->WorkSize;
+    ImVec2 window_pos, window_pos_pivot;
+    window_pos.x = (location & 1) ? (work_pos.x + work_size.x - PAD) : (work_pos.x + PAD);
+    window_pos.y = (location & 2) ? (work_pos.y + work_size.y - PAD) : (work_pos.y + PAD);
+    window_pos_pivot.x = (location & 1) ? 1.0f : 0.0f;
+    window_pos_pivot.y = (location & 2) ? 1.0f : 0.0f;
+    ImGui::SetNextWindowPos(window_pos, ImGuiCond_Always, window_pos_pivot);
+    ImGui::SetNextWindowBgAlpha(0.35f);
+
+    if (ImGui::Begin("FPSOverlay", nullptr, window_flags))
+    {
+        const char* title = "Performance";
+        float windowWidth = ImGui::GetWindowSize().x;
+        float textWidth = ImGui::CalcTextSize(title).x;
+        ImGui::SetCursorPosX((windowWidth - textWidth) / 2.0f);
+        ImGui::TextColored(title_color, "%s", title);
+
+        ImGui::Spacing();
+        ImGui::Separator();
+
+        
+        double frameTimeMs = GTA::GetCurrentFrametimeMs();
+        int fps = GTA::GetCurrentFPS();
+
+        if (fps == 0) {
+            ImGui::Text("Process not selected, please select a process in the 'Utility' tab");
+            ImGui::End();
+            return;
+        }
+
+
+        ImGui::Text("FPS: %d", fps);
+        //ImGui::Text("Frametime: %.2f ms", frameTimeMs);
+
+        static std::vector<float> fps_samples;
+        if (fps > 0) {
+            fps_samples.push_back(static_cast<float>(fps));
+            if (fps_samples.size() > 300) // last ~15s if updating ~20Hz
+                fps_samples.erase(fps_samples.begin());
+
+            std::vector<float> sorted = fps_samples;
+            std::sort(sorted.begin(), sorted.end());
+            size_t idx = max(static_cast<size_t>(1), static_cast<size_t>(sorted.size() * 0.01f)) - 1;
+            float fps_1percent_low = sorted[idx];
+            ImGui::Text("1%% Low: %.0f FPS", fps_1percent_low);
+        }
+
+        static float frameTimeHistory[240] = {};
+        static int historyIndex = 0;
+
+        constexpr float plot_fps = 90.f;
+        static double lastUpdate = ImGui::GetTime();
+        double currentTime = ImGui::GetTime();
+        const double updateInterval = 1.0 / plot_fps;
+
+        static char overlay[32] = "Frametime: 0.00 ms";
+        if ((currentTime - lastUpdate) >= updateInterval)
+        {
+            lastUpdate = currentTime;
+
+            frameTimeHistory[historyIndex] = static_cast<float>(frameTimeMs);
+            historyIndex = (historyIndex + 1) % IM_ARRAYSIZE(frameTimeHistory);
+
+            float avgFrametime = 0.0f;
+            for (float ft : frameTimeHistory)
+                avgFrametime += ft;
+            avgFrametime /= static_cast<float>(IM_ARRAYSIZE(frameTimeHistory));
+
+            sprintf_s(overlay, "Frametime: %.2f ms", avgFrametime);
+        }
+
+        ImGui::PlotLines("##FrametimeGraph", frameTimeHistory, IM_ARRAYSIZE(frameTimeHistory),
+            historyIndex, overlay, 0.0f, 50.0f, ImVec2(230, 60));
+        
+    }
+    ImGui::End();
+}
+
+
 
 
 
@@ -1966,7 +2532,6 @@ void RenderGTA5Menu(
                 static std::vector<std::string> m_ComboList =
                 {
                      "GTA 5",
-                     "GTA Online",
                      "GTA 5 (Modded)",
                      "FiveM"
                 };
@@ -1983,17 +2548,13 @@ void RenderGTA5Menu(
                     {
                     case 0:
                         // Launch GTA 5 normally
-                        ProcessHandler::LaunchGTA5(true, false);
+                        ProcessHandler::LaunchGTA5(true);
                         break;
                     case 1:
-                        // Launch GTA 5 straight into online
-                        ProcessHandler::LaunchGTA5(true, true);
+                        // Launch GTA 5 without anticheat (used for modded game)
+                        ProcessHandler::LaunchGTA5(false);
                         break;
                     case 2:
-                        // Launch GTA 5 without anticheat (used for modded game)
-                        ProcessHandler::LaunchGTA5(false, false);
-                        break;
-                    case 3:
                         // Launch FiveM
                         ProcessHandler::LaunchFiveM();
                         break;
@@ -2024,7 +2585,7 @@ void RenderGTA5Menu(
 
                 if (Menu.Item.AddSection("Desync from GTA:O"))
                 {
-                    if (ProcessHandler::IsProcessRunning(globals::gtaProcess.c_str())) 
+                    if (globals::is_gta5_running)
                     {
                         currentMenu = SECTION_CONFIRM_DESYNC;
                     }
@@ -2194,6 +2755,8 @@ void RenderImGui(
     ImGui::NewFrame();
 
 
+    g_alert_notification.Draw();
+
     if (showGTA5styleWindow)
     {
         RenderGTA5Menu(p_gta5NotRunning, p_fivemNotRunning);
@@ -2213,11 +2776,17 @@ void RenderImGui(
     if ((visibilityStatus == VISIBLE || visibilityStatus == OVERLAY) && globals::overlayToggled)
     {
         RenderOverlays(p_gta5NotRunning, p_fivemNotRunning);
+        if (showMetricsOverlay)
+            RenderPerformanceOverlay(p_gta5NotRunning, p_fivemNotRunning);
     }
 
     if (externalLogsWindowActive)
     {
         RenderExternalLogWindow();
+    }
+
+    if (_network__no_save_exploit) {
+        g_alert_notification.CreateNotification("WARNING: R* cloud saves are blocked!");
     }
 
     //executes once in the first frame
@@ -2232,8 +2801,9 @@ void RenderImGui(
 
         Logging::Log("Initialization finished", 1);
         loggedStart = true;
-
     }
+
+    ImGui::EndFrame();
 
     ImGui::Render();
 

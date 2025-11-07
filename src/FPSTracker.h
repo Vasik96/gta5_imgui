@@ -9,10 +9,13 @@
 
 void StartEtwSession();
 void OpenAndProcess();
-void StartFpsCalculation();
+void StartPerformanceCalculations();
 
 namespace GTA
 {
-	int GetCurrentFPS();
+    double GetCurrentFrametimeMs();
+    int GetCurrentFPS();
 }
 void StopEtwSession();
+
+extern DWORD g_tracked_pid;

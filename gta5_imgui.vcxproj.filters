@@ -81,9 +81,6 @@
     <ClCompile Include="src\LoggingServer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\NetworkInfo.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="src\KeyboardInput.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -109,6 +106,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\FPSTracker.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\GTAOnline.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -470,9 +470,6 @@
     <ClInclude Include="src\LoggingServer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\NetworkInfo.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="src\KeyboardInput.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -615,6 +612,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\FPSTracker.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ext\hwisenssm2.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\GTAOnline.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

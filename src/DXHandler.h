@@ -12,6 +12,7 @@
 
 
 
+void QueryTotalVRAM(ID3D11Device* device);
 
 bool InitializeDirectX(HWND window,
 	ID3D11Device*& device,
@@ -24,3 +25,11 @@ void CleanupDirectX(ID3D11Device* device,
 	IDXGISwapChain* swap_chain, 
 	ID3D11RenderTargetView* render_target_view
 );
+
+void dx11_reset();
+
+
+
+namespace safety_checks {
+	void check_dx_validity();
+}

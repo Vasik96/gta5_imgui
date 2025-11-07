@@ -40,10 +40,6 @@ namespace FormattedInfo
     std::chrono::steady_clock::time_point lastProcessUpdate = std::chrono::steady_clock::now();
 
 
-
-
-
-
     // Gets the system time in a formatted way (example: 15:30)
     std::string GetFormattedTime()
     {
@@ -213,8 +209,4 @@ namespace FormattedInfo
         snprintf(buf, sizeof(buf), "%dh %dm %ds", hrs, mins, secs);
         return std::string(buf);
     }
-
-
-
-
 }

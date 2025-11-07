@@ -15,8 +15,11 @@ namespace ProcessHandler {
     bool IsProcessRunning(const wchar_t* processName);
     void ResetSession();
     void LaunchFiveM();
-    void LaunchGTA5(bool AntiCheatEnabled, bool intoOnline);
+    void LaunchGTA5(bool AntiCheatEnabled);
     void DesyncFromGTAOnline();
+    DWORD FindProcessIdByWindow(const std::wstring& windowTitle);
+    DWORD GetPIDByProcessName(const wchar_t* processName);
+    std::string GetProcessNameFromPID(DWORD pid);
 }
 
 

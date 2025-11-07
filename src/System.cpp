@@ -1,4 +1,5 @@
 #include "System.h"
+#include "Logging.h"
 
 
 namespace System {
@@ -11,7 +12,7 @@ namespace System {
 
         if (ChangeDisplaySettings(&dm, CDS_FULLSCREEN) != DISP_CHANGE_SUCCESSFUL) {
             // Handle resolution change failure
-            MessageBox(NULL, L"Failed to change resolution", L"Error", MB_ICONERROR);
+            Logging::Log("Failed to change resolution", 3);
         }
     }
 

@@ -35,7 +35,7 @@ void LoggingServer::StartLogServer() {
 
         std::string receivedLog(buffer);
         int logLevel = 0; // You can modify this if you want to send levels in the future
-        Logging::Log(receivedLog, logLevel);  // Calls the actual Logging system
+        Logging::Log(receivedLog, 4);  // Calls the actual Logging system
 
         closesocket(clientSocket);
     }
