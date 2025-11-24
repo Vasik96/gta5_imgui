@@ -1,0 +1,3 @@
+C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\cpr.dll
+C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\libcurl-d.dll
+C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\libcurl.dll

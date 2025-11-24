@@ -1,3 +1,36 @@
 ﻿  Scanning sources for module dependencies...
+  globals.h
+  Compiling...
+  globals.h
+  connection_win.cpp
+  discord_register_win.cpp
+  discord_rpc.cpp
+  dllmain.cpp
+  rpc_connection.cpp
+  serialization.cpp
+  imgui.cpp
+  imgui_demo.cpp
+  imgui_draw.cpp
+  imgui_impl_dx11.cpp
+  imgui_impl_dx12.cpp
+  imgui_impl_win32.cpp
+  imgui_tables.cpp
+  imgui_widgets.cpp
+  FPSTracker.cpp
+  fps_test.cpp
+  GTAOnline.cpp
+  KeyboardInput.cpp
+  Calculations.cpp
+  DXHandler.cpp
+  FormattedInfo.cpp
+  globals.cpp
+  gui.cpp
+  Logging.cpp
+  LoggingServer.cpp
   main.cpp
+  ProcessHandler.cpp
+  ExternalLogger.cpp
+  System.cpp
+  TicTacToe.cpp
+  WindowHandler.cpp
   gta5_imgui.vcxproj -> C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\debug\gta5_imgui.exe

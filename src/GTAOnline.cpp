@@ -75,7 +75,7 @@ std::string gta5_online::get_next_weather_with_eta()
     const int num_states = sizeof(weather_states) / sizeof(weather_states[0]);
     int next_index = -1;
 
-    for (int i = 1; i < num_states; i++)
+    for (int i = 0; i < num_states; i++)
     {
         if (weather_states[i].hour > weather_period_time)
         {
@@ -87,22 +87,18 @@ std::string gta5_online::get_next_weather_with_eta()
     if (next_index == -1)
         next_index = 0;
 
-    double gta_hours_until_next = (weather_states[next_index].hour - weather_period_time);
+    double gta_hours_until_next = weather_states[next_index].hour - weather_period_time;
     if (gta_hours_until_next < 0)
         gta_hours_until_next += WEATHER_PERIOD;
 
     double real_seconds_until_next = gta_hours_until_next * GAME_HOUR_LENGTH;
-
-    int minutes = static_cast<int>(real_seconds_until_next / 60.0);
+    int minutes = static_cast<int>(real_seconds_until_next / 60.0 + 0.5);
 
     std::ostringstream oss;
-    oss << weather_states[next_index].name << " (" << minutes << "min";
-
-
-    oss << ")";
-
+    oss << weather_states[next_index].name << " (" << minutes << "min)";
     return oss.str();
 }
+
 
 std::string gta5_online::get_ingame_time()
 {

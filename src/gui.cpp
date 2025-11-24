@@ -2018,6 +2018,43 @@ void Overlay_AddSection(const char* title, float windowWidth)
     ImGui::Spacing();
 }
 
+void DrawNextWeatherInfo()
+{
+    const std::string label = "Next weather:";
+    const std::string value = gta5_online::get_next_weather_with_eta();
+
+
+    std::string baseWeatherName = value;
+    size_t parenthesisPos = value.find(" (");
+    if (parenthesisPos != std::string::npos)
+    {
+        baseWeatherName = value.substr(0, parenthesisPos);
+    }
+
+    std::stringstream ss(baseWeatherName);
+    std::string word;
+    int wordCount = 0;
+    while (ss >> word)
+    {
+        wordCount++;
+    }
+
+    if (wordCount <= 1) // one word weathers
+    {
+        const std::string full = label + " " + value;
+        ImGui::TextUnformatted(full.c_str());
+    }
+    else // multiple word weathers: e.g "Partly Cloudy"
+    {
+        ImGui::TextUnformatted(label.c_str());
+        float indent = ImGui::CalcTextSize("\t").x;
+        ImGui::Indent(indent);
+        ImGui::TextUnformatted(value.c_str());
+        ImGui::Unindent(indent);
+    }
+}
+
+
 
 
 void RenderOverlays(bool p_gta5NotRunning, bool p_fivemNotRunning)
@@ -2092,7 +2129,7 @@ void RenderOverlays(bool p_gta5NotRunning, bool p_fivemNotRunning)
             
 
             if (!p_gta5NotRunning) {
-                ImGui::Text("Next weather: %s", gta5_online::get_next_weather_with_eta().c_str());
+                DrawNextWeatherInfo();
                 ImGui::Text("Time: %s", gta5_online::get_ingame_time().c_str());
 
                 if (_network__no_save_exploit) {

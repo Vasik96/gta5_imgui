@@ -1,8 +1,8 @@
 ﻿  Scanning sources for module dependencies...
   gui.cpp
   Generating code
-  310 of 7018 functions ( 4.4%) were compiled, the rest were copied from previous compilation.
+  132 of 7059 functions ( 1.9%) were compiled, the rest were copied from previous compilation.
     0 functions were new in current compilation
-    336 functions had inline decision re-evaluated but remain unchanged
+    292 functions had inline decision re-evaluated but remain unchanged
   Finished generating code
   gta5_imgui.vcxproj -> C:\Users\leman\Desktop\Soubory\.projects\gta5_imgui\build\gta5_imgui.exe
